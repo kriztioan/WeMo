@@ -1,0 +1,3 @@
+[submodule "cpp/Serial"]
+	path = cpp/Serial
+	url = https://github.com/kriztioan/Serial.git

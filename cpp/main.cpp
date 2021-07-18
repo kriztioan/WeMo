@@ -1,0 +1,425 @@
+/**
+ *  @file   main.cpp
+ *  @brief  WeMo Mini Smart Plug Control Daemon
+ *  @author KrizTioaN (christiaanboersma@hotmail.com)
+ *  @date   2021-07-17
+ *  @note   BSD-3 licensed
+ *
+ *  Compile and run with:
+ *    make
+ *    ./wemod &
+ *  
+ ***********************************************/
+
+#include "WeMo.h"
+
+#include <algorithm>
+
+#include <cerrno>
+#include <csignal>
+
+#include <sys/signalfd.h>
+#include <sys/time.h>
+
+WeMo *wemo;
+
+time_t now, today, nearest, last, t, rescan;
+
+struct itimerval itimer;
+
+void checktimers(int fire = 0) {
+
+  nearest = rescan;
+
+  if (wemo->timers.find("daily") != wemo->timers.end()) {
+
+    nearest = today + wemo->timers["daily"][0].time;
+
+    if (now >= nearest) {
+
+      nearest += (3600 * 24);
+    }
+
+    for (std::vector<WeMo::Timer>::iterator it = wemo->timers["daily"].begin();
+         it != wemo->timers["daily"].end(); it++) {
+
+      t = today + (*it).time;
+
+      if (fire > 0 && t > last && t < now + 5) {
+
+        if ((*it).action == "on")
+          (*it).plug->On();
+        else if ((*it).action == "off")
+          (*it).plug->Off();
+
+        t += (3600 * 24);
+      }
+
+      if (now >= t) {
+
+        t += (3600 * 24);
+      }
+
+      if (t < nearest) {
+
+        nearest = t;
+      }
+    }
+
+    last = now + 5;
+
+    if (nearest > rescan) {
+
+      nearest = rescan;
+    }
+  }
+
+  itimer.it_value.tv_sec = nearest - now;
+  setitimer(ITIMER_REAL, &itimer, nullptr);
+}
+
+void scan() {
+
+  itimer.it_value.tv_sec = 0;
+  setitimer(ITIMER_REAL, &itimer, nullptr);
+
+  if (wemo->scan() && wemo->process()) {
+
+    rescan = now + 3600;
+
+    if (wemo->timers.find("rescan") != wemo->timers.end()) {
+
+      rescan = now + wemo->timers["rescan"].begin()->time;
+    }
+
+    checktimers();
+  }
+}
+
+int main(int argc, char *argv[], char **envp) {
+
+  FILE *log = nullptr;
+  if (nullptr == (log = freopen("wemo.log", "a+", stdout))) {
+
+    perror("reopen");
+    return (errno);
+  }
+
+  if (-1 == dup2(STDOUT_FILENO, STDERR_FILENO)) {
+
+    perror("dup2");
+    return (errno);
+  }
+
+  sigset_t s_set;
+  sigemptyset(&s_set);
+
+  sigaddset(&s_set, SIGALRM);
+  sigaddset(&s_set, SIGINT);
+  sigaddset(&s_set, SIGQUIT);
+  sigaddset(&s_set, SIGTERM);
+  sigaddset(&s_set, SIGHUP);
+  sigaddset(&s_set, SIGUSR1);
+  sigaddset(&s_set, SIGUSR2);
+
+  sigprocmask(SIG_BLOCK, &s_set, nullptr);
+
+  int fd_signal = signalfd(-1, &s_set, SFD_NONBLOCK);
+
+  now = time(nullptr);
+
+  last = now;
+
+  struct tm s_tm = *localtime(&now);
+  s_tm.tm_sec = 0;
+  s_tm.tm_min = 0;
+  s_tm.tm_hour = 0;
+
+  today = mktime(&s_tm);
+
+  timerclear(&itimer.it_interval);
+  timerclear(&itimer.it_value);
+
+  wemo = new WeMo();
+
+  rescan = now + 3600;
+  if (wemo->timers.find("rescan") != wemo->timers.end()) {
+
+    rescan = now + wemo->timers["rescan"].begin()->time;
+  }
+
+  checktimers();
+
+  fd_set fd_in;
+
+  int finished = 0;
+
+  while (!finished) {
+
+    FD_ZERO(&fd_in);
+    FD_SET(wemo->fd_inotify, &fd_in);
+    FD_SET(fd_signal, &fd_in);
+    int fd_max = std::max(wemo->fd_inotify, fd_signal);
+
+    int fd_serial = wemo->serial.filedescriptor();
+
+    if (fd_serial != -1) {
+
+      FD_SET(fd_serial, &fd_in);
+
+      fd_max = std::max(fd_max, fd_serial);
+    }
+
+    if (-1 == select(fd_max + 1, &fd_in, nullptr, nullptr, nullptr)) {
+
+      perror("select");
+
+      finished = 1;
+      break;
+    }
+
+    if (FD_ISSET(fd_serial, &fd_in)) {
+
+      static int lux_prev = -1;
+
+      uint32_t lux;
+
+      ssize_t nbytes = wemo->serial.read(&lux, sizeof(lux));
+
+      if (nbytes <= 0) {
+
+        printf("=====================================ERROR====================="
+               "===="
+               "================\n"
+               "serial: %s (%d)\n"
+               "==============================================================="
+               "================\n",
+               wemo->serial.getErrorMessage(), wemo->serial.getErrorCode());
+
+        continue;
+      }
+
+      if (nbytes) {
+
+        if (wemo->lux_control.empty()) {
+
+          continue;
+        }
+
+        if (lux_prev < 0) {
+
+          lux_prev = lux;
+
+          continue;
+        }
+
+        if (lux < wemo->lux_on && lux_prev >= wemo->lux_on) {
+
+          for (std::vector<Plug *>::iterator it = wemo->lux_control.begin();
+               it != wemo->lux_control.end(); it++) {
+
+            (*it)->On();
+          }
+        } else if (lux > wemo->lux_off && lux_prev <= wemo->lux_off) {
+
+          for (std::vector<Plug *>::iterator it = wemo->lux_control.begin();
+               it != wemo->lux_control.end(); it++) {
+
+            (*it)->Off();
+          }
+        }
+
+        lux_prev = lux;
+      }
+    }
+
+    if (FD_ISSET(wemo->fd_inotify, &fd_in)) {
+
+      if (wemo->ini_rescan()) {
+
+        rescan = now + 3600;
+
+        if (wemo->timers.find("rescan") != wemo->timers.end()) {
+
+          rescan = now + wemo->timers["rescan"].begin()->time;
+        }
+
+        checktimers();
+      }
+    }
+
+    if (FD_ISSET(fd_signal, &fd_in)) {
+
+      now = time(nullptr);
+
+      s_tm = *localtime(&now);
+      s_tm.tm_sec = 0;
+      s_tm.tm_min = 0;
+      s_tm.tm_hour = 0;
+
+      today = mktime(&s_tm);
+
+      struct signalfd_siginfo siginfo_s;
+
+      if (0 > read(fd_signal, &siginfo_s, sizeof(siginfo_s))) {
+
+        perror("read");
+
+        finished = 1;
+        break;
+      }
+
+      if (siginfo_s.ssi_signo == SIGALRM) {
+
+        if (now >= rescan) {
+
+          scan();
+        }
+
+        checktimers(1);
+      } else if (siginfo_s.ssi_signo == SIGUSR1) {
+
+        scan();
+
+        checktimers();
+      } else if (siginfo_s.ssi_signo == SIGUSR2) {
+
+        printf("---------------------------------------------------------------"
+               "----------------\n"
+               "                         %.24s                           \n"
+               "==============================================================="
+               "================\n"
+               "                                    WeMo                       "
+               "                \n"
+               "==============================================================="
+               "================\n"
+               "                               plugs detected                  "
+               "                \n"
+               "---------------------------------------------------------------"
+               "----------------\n"
+               "Name                      State                                "
+               "                \n"
+               "---------------------------------------------------------------"
+               "----------------\n",
+               ctime(&now));
+
+        for (std::vector<Plug *>::iterator it = wemo->plugs.begin();
+             it != wemo->plugs.end(); it++) {
+
+          printf("%-25s %-15s\n", (*it)->Name().c_str(),
+                 (*it)->State() ? "on" : "off");
+        }
+
+        printf("---------------------------------------------------------------"
+               "----------------\n"
+               "                                   serial                      "
+               "                \n"
+               "---------------------------------------------------------------"
+               "----------------\n"
+               "Status                    %-53s\n"
+               "Port                      %-53s\n"
+               "On                        %-53d\n"
+               "Off                       %-53d\n"
+               "Controls                  ",
+               fd_serial > -1 ? "detected" : "not detected",
+               wemo->serial.port().c_str(), wemo->lux_on, wemo->lux_off);
+
+        int nchars = 0;
+
+        if (wemo->lux_control.empty()) {
+
+          nchars += printf("%c", '-');
+        }
+
+        for (std::vector<Plug *>::iterator it = wemo->lux_control.begin();
+             it != wemo->lux_control.end(); it++) {
+
+          nchars += printf("%s ", (*it)->Name().c_str());
+        }
+
+        for (int i = 0; i < (53 - nchars); i++) {
+
+          putchar(' ');
+        }
+        putchar('\n');
+
+        printf("-----------------------------------------------------------"
+               "----"
+               "----------------\n"
+               "                       registered daily timers and "
+               "schedule    "
+               "                \n"
+               "-----------------------------------------------------------"
+               "----"
+               "----------------\n"
+               "Name                      Action         Date and time     "
+               "    "
+               "                \n"
+               "-----------------------------------------------------------"
+               "----"
+               "----------------\n");
+
+        std::vector<WeMo::Timer> timestamps;
+
+        timestamps.push_back((WeMo::Timer){
+            .plug = nullptr, .time = rescan, .action = "rescan", .name = "-"});
+
+        if (wemo->timers.find("daily") != wemo->timers.end()) {
+
+          for (std::vector<WeMo::Timer>::iterator it =
+                   wemo->timers["daily"].begin();
+               it != wemo->timers["daily"].end(); it++) {
+
+            t = today + (*it).time;
+
+            if (now >= t) {
+
+              t += (3600 * 24);
+            }
+
+            timestamps.push_back((WeMo::Timer){.plug = nullptr,
+                                               .time = t,
+                                               .action = (*it).action,
+                                               .name = (*it).name});
+          }
+
+          std::sort(timestamps.begin(), timestamps.end(), WeMo::TimerCompare);
+        }
+
+        char date[64];
+
+        for (std::vector<WeMo::Timer>::iterator it = timestamps.begin();
+             it != timestamps.end(); it++) {
+
+          strftime(date, sizeof(date), "%a, %d %B %Y %H:%M:%S",
+                   localtime(&(*it).time));
+
+          printf("%-25s %-15s %-37s\n", (*it).name.c_str(),
+                 (*it).action.c_str(), date);
+        }
+
+        printf("==============================================================="
+               "================\n");
+
+        fflush(log);
+      } else if (siginfo_s.ssi_signo == SIGINT ||
+                 siginfo_s.ssi_signo == SIGQUIT ||
+                 siginfo_s.ssi_signo == SIGTERM ||
+                 siginfo_s.ssi_signo == SIGHUP) {
+
+        finished = 1;
+      }
+    }
+  }
+
+  close(fd_signal);
+
+  if (log) {
+
+    fclose(log);
+  }
+
+  delete wemo;
+
+  return 0;
+}
