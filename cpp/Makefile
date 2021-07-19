@@ -3,10 +3,10 @@ CPP_FILES:=$(wildcard *.cpp)
 OBJ_FILES:=$(patsubst %.cpp,%.o,$(CPP_FILES))
 
 $(PROG): $(OBJ_FILES)
-	c++ -o wemod $(OBJ_FILES)
+	$(CXX) -o wemod $(OBJ_FILES)
 
 %.o: %.cpp
-	c++ -c $<
+	$(CXX) -c $<
 
 clean:
-	rm -f *.o wemod
+	$(RM) -f *.o $(PROG)
