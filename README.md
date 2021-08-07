@@ -4,6 +4,8 @@
 
 Daemon for controlling [WEMO](https://www.wemo.com/products) Mini Smart Plugs. The daemon will turn different plugs on/off on a user specified schedule that is configured via an `ini`-file. There are two versions, one written in C++, the other in PHP. The C++\-version is far more mature with support for `serial` control, for example, when the brightness in a room passes a certain threshold plugs can be turned on or off, and uses `inotify` to monitor changes made to the configuration file.
 
+![WeMo in Action](WeMo.png "WeMo in Action")
+
 ## Usage
 
 The C++\-version of the daemon is compiled by calling `make` in the cpp-directory.
