@@ -28,8 +28,6 @@ class Discover {
 
     socket_set_option($this->sock, SOL_SOCKET, SO_REUSEADDR, 1);
 
-    socket_bind($this->sock, gethostbyname( gethostname() ), self::port);
-
     $grp = Array("group" => self::address,
                  "interface" => 0);
 

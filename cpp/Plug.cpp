@@ -113,16 +113,20 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
     return ("");
   }
 
-  struct sockaddr_in local, remote;
+  struct sockaddr_in remote;
+  remote.sin_family = AF_INET;
+  remote.sin_port = htons(this->port);
+  if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
 
-  local.sin_family = AF_INET;
-  local.sin_port = htons(0);
-  local.sin_addr.s_addr = htonl(INADDR_ANY);
-  memset(&local.sin_zero, '\0', 8);
+    perror("inet_pton");
+    return ("");
+  }
+  memset(&remote.sin_zero, '\0', 8);
 
-  if (-1 == bind(sockfd, (struct sockaddr *)&local, sizeof(struct sockaddr))) {
+  if (-1 ==
+      connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
 
-    perror("bind");
+    perror("connect");
     return ("");
   }
 
@@ -142,22 +146,6 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
                     "Connection: close\r\n"
                     "\r\n" +
                     xml;
-
-  remote.sin_family = AF_INET;
-  remote.sin_port = htons(this->port);
-  if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
-
-    perror("inet_pton");
-    return ("");
-  }
-  memset(&remote.sin_zero, '\0', 8);
-
-  if (-1 ==
-      connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
-
-    perror("connect");
-    return ("");
-  }
 
   const char *msg_p = msg.c_str();
   ssize_t sent = 0, bytes = msg.size();
