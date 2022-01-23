@@ -81,7 +81,11 @@ class Discover {
 
       if(($bytes = socket_recvfrom($this->sock, $buf, $len, $flags, $name, $port)) === false) {
 
-        break;
+        $errno = socket_last_error($this->sock);
+        if(!($errno == SOCKET_EAGAIN || $errno == SOCKET_EWOULDBLOCK))
+           echo socket_strerror($errno);
+        socket_clear_error($this->sock);
+        continue;
       }
 
       if($bytes > 0) {

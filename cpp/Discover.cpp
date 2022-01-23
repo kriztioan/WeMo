@@ -133,7 +133,8 @@ bool Discover::receive() {
     if (-1 == (bytes = recvfrom(this->sockfd, buff, sizeof(buff), 0,
                                 (struct sockaddr *)&from, &from_size))) {
 
-      perror("recvfrom");
+      if(!(errno == EAGAIN || errno == EWOULDBLOCK))
+        perror("recvfrom");
       continue;
     }
 
