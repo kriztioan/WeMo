@@ -23,10 +23,17 @@ bool Discover::scan() {
     return false;
   }
 
+  int no = 0;
+  if (-1 == setsockopt(this->sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &no,
+                       sizeof(no))) {
+
+    perror("setsockopt");
+    return false;
+  }
+
   struct ip_mreq mc_req;
   mc_req.imr_interface.s_addr = htonl(INADDR_ANY);
   mc_req.imr_multiaddr.s_addr = inet_addr(Discover::ADDRESS);
-
   if (-1 == setsockopt(this->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mc_req,
                        sizeof(mc_req))) {
 
@@ -104,7 +111,6 @@ bool Discover::receive() {
   struct timeval rcvtimeo;
   rcvtimeo.tv_sec = 3;
   rcvtimeo.tv_usec = 0;
-
   if (-1 == setsockopt(this->sockfd, SOL_SOCKET, SO_RCVTIMEO,
                        (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
 
@@ -112,9 +118,8 @@ bool Discover::receive() {
     return false;
   }
 
-  int reuseaddr = 1;
-  if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr,
-                       sizeof(reuseaddr))) {
+  int yes = 1;
+  if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
 
     perror("setsockopt");
     return false;
@@ -133,7 +138,7 @@ bool Discover::receive() {
     if (-1 == (bytes = recvfrom(this->sockfd, buff, sizeof(buff), 0,
                                 (struct sockaddr *)&from, &from_size))) {
 
-      if(!(errno == EAGAIN || errno == EWOULDBLOCK))
+      if (!(errno == EAGAIN || errno == EWOULDBLOCK))
         perror("recvfrom");
       continue;
     }
