@@ -102,15 +102,10 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
   int sockfd = -1;
   if (-1 == (sockfd = socket(AF_INET, SOCK_STREAM, protocol->p_proto))) {
+
     perror("socket");
+    close(sockfd);
     return "";
-  }
-
-  int yes = 1;
-  if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))) {
-
-    perror("setsockopt");
-    return ("");
   }
 
   struct sockaddr_in remote;
@@ -119,15 +114,27 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
 
     perror("inet_pton");
-    return ("");
+    close(sockfd);
+    return "";
   }
   memset(&remote.sin_zero, '\0', 8);
+
+  struct timeval rcvtimeo;
+  rcvtimeo.tv_sec = 3;
+  rcvtimeo.tv_usec = 0;
+  if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcvtimeo,
+                       sizeof(rcvtimeo))) {
+
+    perror("setsockopt");
+    return "";
+  }
 
   if (-1 ==
       connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
 
     perror("connect");
-    return ("");
+    close(sockfd);
+    return "";
   }
 
   std::string msg = "POST /upnp/control/basicevent1 HTTP/1.1\r\n"
@@ -155,7 +162,8 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
     if (-1 == (sent = send(sockfd, msg_p + sent, bytes, 0))) {
 
       perror("sent");
-      return ("");
+      close(sockfd);
+      return "";
     }
     bytes -= sent;
   }
@@ -172,11 +180,17 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   }
 
   close(sockfd);
-
+  
   if (bytes == -1) {
 
     perror("recv");
-    return ("");
+    return "";
+  }
+
+  if (errno == EAGAIN || errno == EWOULDBLOCK) {
+
+    puts("recv: timed out");
+    return "";
   }
 
   size_t s = response.find(response_tag), e = response.find("</", s);

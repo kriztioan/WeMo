@@ -28,6 +28,7 @@ bool Discover::scan() {
                        sizeof(no))) {
 
     perror("setsockopt");
+    close(this->sockfd);
     return false;
   }
 
@@ -43,11 +44,13 @@ bool Discover::scan() {
 
   if (!this->broadcast()) {
 
+    close(this->sockfd);
     return false;
   }
 
   if (!this->receive()) {
 
+    close(this->sockfd);
     return false;
   }
 
@@ -55,6 +58,7 @@ bool Discover::scan() {
                        sizeof(mc_req))) {
 
     perror("setsockopt");
+    close(this->sockfd);
     return false;
   }
 
