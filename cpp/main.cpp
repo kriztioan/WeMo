@@ -27,21 +27,21 @@ time_t now, today, nearest, last, t, rescan;
 
 struct itimerval itimer;
 
-void checktimers(int fire = 0) {
+void _checktimers(const char *type, int fire = 0) {
 
   nearest = rescan;
 
-  if (wemo->timers.find("daily") != wemo->timers.end()) {
+  if (wemo->timers.find(type) != wemo->timers.end()) {
 
-    nearest = today + wemo->timers["daily"][0].time;
+    nearest = today + wemo->timers[type][0].time;
 
     if (now >= nearest) {
 
       nearest += (3600 * 24);
     }
 
-    for (std::vector<WeMo::Timer>::iterator it = wemo->timers["daily"].begin();
-         it != wemo->timers["daily"].end(); it++) {
+    for (std::vector<WeMo::Timer>::iterator it = wemo->timers[type].begin();
+         it != wemo->timers[type].end(); it++) {
 
       t = today + (*it).time;
 
@@ -78,6 +78,12 @@ void checktimers(int fire = 0) {
   setitimer(ITIMER_REAL, &itimer, nullptr);
 }
 
+void checktimers(int fire = 0) {
+
+  _checktimers("daily", fire);
+  _checktimers("sun", fire);
+}
+
 void scan() {
 
   itimer.it_value.tv_sec = 0;
@@ -93,6 +99,66 @@ void scan() {
     }
 
     checktimers();
+  }
+}
+
+void display_schedule(const char *type) {
+
+  printf("-----------------------------------------------------------"
+         "----"
+         "----------------\n"
+         "                       registered %s timers and "
+         "schedule    "
+         "                \n"
+         "-----------------------------------------------------------"
+         "----"
+         "----------------\n"
+         "Name                      Action         Date and time     "
+         "    "
+         "                \n"
+         "-----------------------------------------------------------"
+         "----"
+         "----------------\n", type);
+
+  std::vector<WeMo::Timer> timestamps;
+
+  if(strcmp(type, "daily") == 0) {
+
+    timestamps.push_back((WeMo::Timer){
+        .plug = nullptr, .time = rescan, .action = "rescan", .name = "-"});
+  }
+
+  if (wemo->timers.find(type) != wemo->timers.end()) {
+
+    for (std::vector<WeMo::Timer>::iterator it = wemo->timers[type].begin();
+         it != wemo->timers[type].end(); it++) {
+
+      t = today + (*it).time;
+
+      if (now >= t) {
+
+        t += (3600 * 24);
+      }
+
+      timestamps.push_back((WeMo::Timer){.plug = nullptr,
+                                         .time = t,
+                                         .action = (*it).action,
+                                         .name = (*it).name});
+    }
+
+    std::sort(timestamps.begin(), timestamps.end(), WeMo::TimerCompare);
+  }
+
+  char date[64];
+
+  for (std::vector<WeMo::Timer>::iterator it = timestamps.begin();
+       it != timestamps.end(); it++) {
+
+    strftime(date, sizeof(date), "%a, %d %B %Y %H:%M:%S",
+             localtime(&(*it).time));
+
+    printf("%-25s %-15s %-37s\n", (*it).name.c_str(), (*it).action.c_str(),
+           date);
   }
 }
 
@@ -343,60 +409,9 @@ int main(int argc, char *argv[], char **envp) {
         }
         putchar('\n');
 
-        printf("-----------------------------------------------------------"
-               "----"
-               "----------------\n"
-               "                       registered daily timers and "
-               "schedule    "
-               "                \n"
-               "-----------------------------------------------------------"
-               "----"
-               "----------------\n"
-               "Name                      Action         Date and time     "
-               "    "
-               "                \n"
-               "-----------------------------------------------------------"
-               "----"
-               "----------------\n");
+        display_schedule("daily");
 
-        std::vector<WeMo::Timer> timestamps;
-
-        timestamps.push_back((WeMo::Timer){
-            .plug = nullptr, .time = rescan, .action = "rescan", .name = "-"});
-
-        if (wemo->timers.find("daily") != wemo->timers.end()) {
-
-          for (std::vector<WeMo::Timer>::iterator it =
-                   wemo->timers["daily"].begin();
-               it != wemo->timers["daily"].end(); it++) {
-
-            t = today + (*it).time;
-
-            if (now >= t) {
-
-              t += (3600 * 24);
-            }
-
-            timestamps.push_back((WeMo::Timer){.plug = nullptr,
-                                               .time = t,
-                                               .action = (*it).action,
-                                               .name = (*it).name});
-          }
-
-          std::sort(timestamps.begin(), timestamps.end(), WeMo::TimerCompare);
-        }
-
-        char date[64];
-
-        for (std::vector<WeMo::Timer>::iterator it = timestamps.begin();
-             it != timestamps.end(); it++) {
-
-          strftime(date, sizeof(date), "%a, %d %B %Y %H:%M:%S",
-                   localtime(&(*it).time));
-
-          printf("%-25s %-15s %-37s\n", (*it).name.c_str(),
-                 (*it).action.c_str(), date);
-        }
+        display_schedule("sun");
 
         printf("==============================================================="
                "================\n");

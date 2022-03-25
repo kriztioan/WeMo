@@ -157,7 +157,24 @@ bool WeMo::ini_parse(
           .action = "rescan",
           .name = "rescan"});
     }
+
+    if (ini["global"].find("latitude") != ini["global"].end()) {
+
+      this->latitude = strtof(ini["global"]["latitude"].c_str(), nullptr);
+    }
+
+    if (ini["global"].find("longitude") != ini["global"].end()) {
+
+      this->longitude = strtof(ini["global"]["longitude"].c_str(), nullptr);
+    }
+
+    if (ini["global"].find("tz") != ini["global"].end()) {
+
+      this->tz_offset = strtof(ini["global"]["tz"].c_str(), nullptr);
+    }
   }
+
+  Sun *sun = nullptr;
 
   for (std::vector<Plug *>::iterator it = this->plugs.begin();
        it != this->plugs.end(); it++) {
@@ -166,6 +183,41 @@ bool WeMo::ini_parse(
 
     if (ini.find(name) != ini.end()) {
 
+      if (ini[name].find("sun") != ini[name].end()) {
+
+        if (ini[name]["sun"] == "true") {
+
+          if (!sun) {
+
+            sun = new Sun(latitude, longitude, tz_offset);
+          }
+
+          t = 3600 * strtol(sun->rise().c_str(), &m, 10);
+
+          if (*m == ':') {
+
+            t += 60 * strtol(++m, NULL, 10);
+          }
+
+          t += 15 * 60;
+
+          this->timers["sun"].push_back((WeMo::Timer){
+              .plug = *it, .time = t, .action = "off", .name = name});
+
+          t = 3600 * strtol(sun->set().c_str(), &m, 10);
+
+          if (*m == ':') {
+
+            t += 60 * strtol(++m, NULL, 10);
+          }
+
+          t -= 15 * 60;
+
+          this->timers["sun"].push_back((WeMo::Timer){
+              .plug = *it, .time = t, .action = "on", .name = name});
+        }
+      }
+      
       if (ini[name].find("daily") != ini[name].end()) {
 
         if (ini[name]["daily"] == "true") {
@@ -208,6 +260,11 @@ bool WeMo::ini_parse(
         }
       }
     }
+  }
+
+  if (sun) {
+
+    delete sun;
   }
 
   lux_control.clear();

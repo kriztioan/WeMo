@@ -1,5 +1,5 @@
 /**
- *  @file   WeMo.cpp
+ *  @file   WeMo.h
  *  @brief  WeMo Class Definition
  *  @author KrizTioaN (christiaanboersma@hotmail.com)
  *  @date   2021-07-17
@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "Discover.h"
+#include "Sun.h"
 #include "Serial/Serial.h"
 
 class WeMo : public Discover {
@@ -65,6 +66,10 @@ private:
   ini_parse(std::map<std::string, std::map<std::string, std::string>> &ini);
 
   int wd_inotify;
+
+  float latitude;
+  float longitude;
+  int tz_offset;
 };
 
 #endif
