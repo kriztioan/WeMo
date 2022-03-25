@@ -39,6 +39,7 @@ bool Discover::scan() {
                        sizeof(mc_req))) {
 
     perror("setsockopt");
+    close(this->sockfd);
     return false;
   }
 
@@ -105,6 +106,7 @@ bool Discover::broadcast() {
                    (struct sockaddr *)&mc, sizeof(struct sockaddr))) {
 
     perror("sendto");
+    return false;
   }
 
   return true;
