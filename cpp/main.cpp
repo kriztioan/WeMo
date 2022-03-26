@@ -8,7 +8,7 @@
  *  Compile and run with:
  *    make
  *    ./wemod &
- *  
+ *
  ***********************************************/
 
 #include "WeMo.h"
@@ -29,8 +29,6 @@ struct itimerval itimer;
 
 void _checktimers(const char *type, int fire = 0) {
 
-  nearest = rescan;
-
   if (wemo->timers.find(type) != wemo->timers.end()) {
 
     nearest = today + wemo->timers[type][0].time;
@@ -47,10 +45,13 @@ void _checktimers(const char *type, int fire = 0) {
 
       if (fire > 0 && t > last && t < now + 5) {
 
-        if ((*it).action == "on")
+        if ((*it).action == "on") {
+
           (*it).plug->On();
-        else if ((*it).action == "off")
+        } else if ((*it).action == "off") {
+
           (*it).plug->Off();
+        }
 
         t += (3600 * 24);
       }
@@ -65,23 +66,34 @@ void _checktimers(const char *type, int fire = 0) {
         nearest = t;
       }
     }
-
-    last = now + 5;
-
-    if (nearest > rescan) {
-
-      nearest = rescan;
-    }
   }
-
-  itimer.it_value.tv_sec = nearest - now;
-  setitimer(ITIMER_REAL, &itimer, nullptr);
 }
 
 void checktimers(int fire = 0) {
 
+  nearest = rescan;
+
   _checktimers("daily", fire);
+
+  size_t t = nearest;
+
   _checktimers("sun", fire);
+
+  if (t < nearest) {
+
+    nearest = t;
+  }
+
+  if (nearest > rescan) {
+
+    nearest = rescan;
+  }
+
+  last = now + 5;
+
+  itimer.it_value.tv_sec = nearest - now;
+
+  setitimer(ITIMER_REAL, &itimer, nullptr);
 }
 
 void scan() {
@@ -118,11 +130,12 @@ void display_schedule(const char *type) {
          "                \n"
          "-----------------------------------------------------------"
          "----"
-         "----------------\n", type);
+         "----------------\n",
+         type);
 
   std::vector<WeMo::Timer> timestamps;
 
-  if(strcmp(type, "daily") == 0) {
+  if (strcmp(type, "daily") == 0) {
 
     timestamps.push_back((WeMo::Timer){
         .plug = nullptr, .time = rescan, .action = "rescan", .name = "-"});
