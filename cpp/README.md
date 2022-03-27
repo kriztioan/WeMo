@@ -23,7 +23,6 @@ Below is a `wemo.ini` example configuration file.
 
 ```INI
 [global]
-tz=-8
 latitude=37.386051
 longitude=-122.083855
 # rescan interval in seconds
@@ -55,6 +54,7 @@ The daemon responds to the `SIGUSR1` and `SIGUSR2` signal, where the former forc
 ## Notes
 
 1. Due to the dependence on `inotify`, the daemon will not compile on all systems, i.e., those without `inotify` support, e.g., MacOS.
+2. The daemon relies on [`OpenSSL`](https://www.openssl.org) for internet requests and [`RapidJSON`](https://rapidjson.org) to parse [`JSON`](https://www.json.org) responses.
 
 ## BSD-3 License
 

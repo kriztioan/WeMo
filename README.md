@@ -2,7 +2,7 @@
 
 ## Description
 
-Daemon for controlling [WEMO](https://www.wemo.com/products) Mini Smart Plugs. The daemon will turn different plugs on/off on a user specified schedule that is configured via an `ini`-file. There are two versions, one written in C++, the other in PHP. The C++\-version is far more mature with support for `serial` control, for example, when the brightness in a room passes a certain threshold plugs can be turned on or off, and uses `inotify` to monitor changes made to the configuration file. Sun-set/rise times are provided via [sunrise-sunset.org](https://sunrise-sunset.org/api).
+Daemon for controlling [WEMO](https://www.wemo.com/products) Mini Smart Plugs. The daemon will turn different plugs on/off on a user specified schedule that is configured via an `ini`-file. There are two versions, one written in C++, the other in PHP. The C++\-version is far more mature with support for `serial` control, for example, when the brightness in a room passes a certain threshold plugs can be turned on or off, and uses `inotify` to monitor changes made to the configuration file. Furthermore, the C++\-version can trigger on sunset/rise. Sun-set/rise times are provided via [sunrise-sunset.org](https://sunrise-sunset.org/api).
 
 ![WeMo in Action](WeMo.png "WeMo in Action")
 
@@ -32,7 +32,6 @@ Below is a `wemo.ini` example configuration file.
 
 ```INI
 [global]
-tz=-8
 latitude=37.386051
 longitude=-122.083855
 # rescan interval in seconds
@@ -67,6 +66,7 @@ The daemons responds to the `SIGUSR1` and `SIGUSR2` signal, where the former for
 2. The PHP-version might require enabling certain functionality via `php.ini` or could simply not be available on a particular system. For example, the `pcntl_*` family of functions are not available on systems that do not implement the underlying C function, e.g., MacOS and FreeBSD.
 3. The PHP-version does not make use of the `global` and `serial` sections, but has an `interface` key, without a section, that controls the network interface to use.
 4. There are slight differences in implementation details that are dependent on the language being used. For example, PHP has the `parse_ini_file` function that needs an implementation in C++.
+5. The C++-version relies on [`OpenSSL`](https://www.openssl.org) for internet requests and [`RapidJSON`](https://rapidjson.org) to parse [`JSON`](https://www.json.org) responses.
 
 ## BSD-3 License
 

@@ -69,7 +69,6 @@ private:
 
   float latitude;
   float longitude;
-  int tz_offset;
 };
 
 #endif

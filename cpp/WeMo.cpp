@@ -167,11 +167,6 @@ bool WeMo::ini_parse(
 
       this->longitude = strtof(ini["global"]["longitude"].c_str(), nullptr);
     }
-
-    if (ini["global"].find("tz") != ini["global"].end()) {
-
-      this->tz_offset = strtof(ini["global"]["tz"].c_str(), nullptr);
-    }
   }
 
   Sun *sun = nullptr;
@@ -189,7 +184,7 @@ bool WeMo::ini_parse(
 
           if (!sun) {
 
-            sun = new Sun(latitude, longitude, tz_offset);
+            sun = new Sun(latitude, longitude);
           }
 
           t = 3600 * strtol(sun->rise().c_str(), &m, 10);
@@ -211,7 +206,7 @@ bool WeMo::ini_parse(
             t += 60 * strtol(++m, NULL, 10);
           }
 
-          t -= 15 * 60;
+          t -= 30 * 60;
 
           this->timers["sun"].push_back((WeMo::Timer){
               .plug = *it, .time = t, .action = "on", .name = name});

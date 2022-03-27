@@ -9,7 +9,7 @@
 
 #include "Sun.h"
 
-Sun::Sun(float latitude, float longitude, int tz_offset) {
+Sun::Sun(float latitude, float longitude) {
 
   time_t t = time(NULL);
 
@@ -21,7 +21,7 @@ Sun::Sun(float latitude, float longitude, int tz_offset) {
     read(fd, &cache, sizeof(cache));
     close(fd);
     if (cache.latitude == latitude && cache.longitude == longitude &&
-        cache.tz_offset == tz_offset && cache.expires < t) {
+        cache.expires < t) {
 
       return;
     }
@@ -29,7 +29,6 @@ Sun::Sun(float latitude, float longitude, int tz_offset) {
 
   cache.latitude = latitude;
   cache.longitude = longitude;
-  cache.tz_offset = tz_offset;
   cache.expires = t + 3600 * 8;
   *cache.rise = '\0';
   *cache.set = '\0';
@@ -46,13 +45,9 @@ Sun::Sun(float latitude, float longitude, int tz_offset) {
     if (strncmp(rapid["status"].GetString(), "OK", 2) == 0) {
 
       strncpy(cache.rise,
-              utc_to_local(rapid["results"]["sunrise"].GetString(), tz_offset)
-                  .c_str(),
-              5);
+              utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(), 5);
       strncpy(cache.set,
-              utc_to_local(rapid["results"]["sunset"].GetString(), tz_offset)
-                  .c_str(),
-              5);
+              utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 5);
     }
   }
 
@@ -61,23 +56,27 @@ Sun::Sun(float latitude, float longitude, int tz_offset) {
   close(fd);
 }
 
-std::string Sun::utc_to_local(const std::string &utc, int tz_offset) {
+std::string Sun::utc_to_local(const std::string &utc) {
+
+  struct tm s_tm;
 
   time_t t = time(NULL);
-
-  struct tm s_tm = *localtime(&t);
-
-  tz_offset += s_tm.tm_isdst;
 
   char *err;
   if ((err = strptime(utc.c_str(), "%l:%M:%S %p", &s_tm)) != NULL && !*err) {
 
-    s_tm.tm_hour += tz_offset;
+    time_t d = timegm(localtime(&t)) - t, h = d / 3600, m = d % 3600;
+
+    s_tm.tm_hour += h;
+    s_tm.tm_min += m;
+
+    s_tm.tm_hour =
+        ((s_tm.tm_hour %= 24) < 0) ? s_tm.tm_hour + 24 : s_tm.tm_hour;
 
     std::stringstream ss;
 
-    ss << (((s_tm.tm_hour %= 24) < 0) ? s_tm.tm_hour + 24 : s_tm.tm_hour) << ':'
-       << std::setw(2) << std::setfill('0') << s_tm.tm_min;
+    ss << s_tm.tm_hour << ':' << std::setw(2) << std::setfill('0')
+       << s_tm.tm_min;
 
     return ss.str();
   }
