@@ -45,13 +45,21 @@ private:
   BIO *bio = nullptr;
   SSL_CTX *ctx = nullptr;
 
+  float latitude;
+  float longitude;
+
   struct {
     float latitude;
     float longitude;
-    time_t expires;
-    char rise[6];
-    char set[6];
-  } cache;
+    char rise[17];
+    char set[17];
+  } store;
+
+  static const char *store_file;
+
+  int read_store();
+  int validate_store();
+  void write_store();
 
   std::string https_get(std::string url, std::vector<std::string> headers = {},
                         short port = 443, size_t block_size = 4096);

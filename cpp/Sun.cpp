@@ -9,34 +9,30 @@
 
 #include "Sun.h"
 
-Sun::Sun(float latitude, float longitude) {
+const char *Sun::store_file = "sun.store";
+
+Sun::Sun(float latitude, float longitude)
+    : latitude(latitude), longitude(longitude) {
+
+  if (read_store() == 0 && validate_store() == 0) {
+
+    return;
+  }
+
+  store.latitude = latitude;
+
+  store.longitude = longitude;
 
   time_t t = time(NULL);
 
-  int fd;
-
-  const char *file = "sun.cache";
-  if (access(file, F_OK) == 0) {
-    fd = open(file, O_RDONLY);
-    read(fd, &cache, sizeof(cache));
-    close(fd);
-    if (cache.latitude == latitude && cache.longitude == longitude &&
-        cache.expires < t) {
-
-      return;
-    }
-  }
-
-  cache.latitude = latitude;
-  cache.longitude = longitude;
-  cache.expires = t + 3600 * 8;
-  *cache.rise = '\0';
-  *cache.set = '\0';
-
-  std::vector<std::string> headers = {"Accept: application/json"};
+  char s[11];
+  strftime(s, 11, "%F", localtime(&t));
 
   std::stringstream url;
-  url << "api.sunrise-sunset.org/json?lat=" << latitude << "&lng=" << longitude;
+  url << "api.sunrise-sunset.org/json?lat=" << latitude << "&lng=" << longitude
+      << "&date=" << s << "&formatted=0";
+
+  std::vector<std::string> headers = {"Accept: application/json"};
 
   std::string json = https_get(url.str(), headers);
 
@@ -44,41 +40,68 @@ Sun::Sun(float latitude, float longitude) {
   if (!rapid.Parse(json.c_str()).HasParseError()) {
     if (strncmp(rapid["status"].GetString(), "OK", 2) == 0) {
 
-      strncpy(cache.rise,
-              utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(), 5);
-      strncpy(cache.set,
-              utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 5);
+      strncpy(store.rise,
+              utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(),
+              17);
+      strncpy(store.set,
+              utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 17);
     }
   }
 
-  fd = open(file, O_WRONLY | O_CREAT, 0644);
-  write(fd, &cache, sizeof(cache));
-  close(fd);
+  write_store();
+}
+
+int Sun::read_store() {
+
+  int fd = open(store_file, O_RDONLY);
+  if (fd > 0) {
+    read(fd, &store, sizeof(store));
+    close(fd);
+    return 0;
+  }
+
+  return -1;
+}
+
+int Sun::validate_store() {
+
+  time_t t = time(NULL);
+
+  char s[11];
+  if (strftime(s, 11, "%F", localtime(&t)) && store.latitude == latitude &&
+      store.longitude == longitude && strncmp(store.rise, s, 10) == 0) {
+
+    return 0;
+  }
+
+  return -1;
+}
+
+void Sun::write_store() {
+
+  int fd = open(store_file, O_WRONLY | O_CREAT, 0644);
+  if (fd > 0) {
+    write(fd, &store, sizeof(store));
+    close(fd);
+  }
 }
 
 std::string Sun::utc_to_local(const std::string &utc) {
 
   struct tm s_tm;
 
-  time_t t = time(NULL);
-
   char *err;
-  if ((err = strptime(utc.c_str(), "%l:%M:%S %p", &s_tm)) != NULL && !*err) {
+  if ((err = strptime(utc.c_str(), "%FT%T%z", &s_tm)) != NULL && !*err) {
 
-    time_t d = timegm(localtime(&t)) - t, h = d / 3600, m = d % 3600;
+    time_t t = timegm(&s_tm);
+    if (localtime_r(&t, &s_tm)) {
 
-    s_tm.tm_hour += h;
-    s_tm.tm_min += m;
+      char s[17];
+      if (strftime(s, 17, "%FT%-k:%M", &s_tm)) {
 
-    s_tm.tm_hour =
-        ((s_tm.tm_hour %= 24) < 0) ? s_tm.tm_hour + 24 : s_tm.tm_hour;
-
-    std::stringstream ss;
-
-    ss << s_tm.tm_hour << ':' << std::setw(2) << std::setfill('0')
-       << s_tm.tm_min;
-
-    return ss.str();
+        return s;
+      }
+    }
   }
 
   return std::string();
@@ -193,6 +216,6 @@ fail:
   return (std::string());
 }
 
-std::string Sun::rise() { return cache.rise; }
+std::string Sun::rise() { return store.rise + 11; }
 
-std::string Sun::set() { return cache.set; }
+std::string Sun::set() { return store.set + 11; }
