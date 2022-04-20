@@ -126,7 +126,7 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
   char buff[block_size];
 
   if (!ctx) {
-    ctx = SSL_CTX_new(SSLv23_method());
+    ctx = SSL_CTX_new(TLS_method());
     if (!ctx) {
       return (std::string());
     }
@@ -142,6 +142,8 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
       goto fail;
     }
     SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+
+    SSL_set_tlsext_host_name(ssl, hostname.c_str());
 
     struct hostent *remote_host = gethostbyname(hostname.c_str());
     if (!remote_host) {
@@ -191,12 +193,14 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
 
   request = ss.str();
 
-  BIO_puts(bio, request.c_str());
+  if (BIO_puts(bio, request.c_str()) <= 0) {
+    goto fail;
+  }
 
   int bytes_recv;
   while ((bytes_recv = BIO_read(bio, buff, block_size - 1))) {
     if (bytes_recv == -1) {
-      return (std::string());
+      goto fail;
     }
     buff[bytes_recv] = '\0';
     response.append(buff);
@@ -206,7 +210,8 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
     return (std::string());
   }
 
-  return response.substr(response.find("\r\n\r\n") + 4);
+  return response.size() > 4 ? response.substr(response.find("\r\n\r\n") + 4)
+                             : std::string();
 
 fail:
   BIO_free_all(bio);
