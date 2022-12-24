@@ -9,7 +9,10 @@
 
 #include "Plug.h"
 
-Plug::Plug(std::string ip, int port) : ip(ip), port(port) {}
+Plug::Plug(std::string ip, int port) : ip(ip), port(port) {
+
+  log(stdout, "[INFO] Added Plug at %s\n", ip.c_str());
+}
 
 std::string Plug::Name(std::string name) {
 
@@ -103,7 +106,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   int sockfd = -1;
   if (-1 == (sockfd = socket(AF_INET, SOCK_STREAM, protocol->p_proto))) {
 
-    perror("socket");
+    logerror("[WARN] socket");
     close(sockfd);
     return "";
   }
@@ -113,7 +116,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   remote.sin_port = htons(this->port);
   if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
 
-    perror("inet_pton");
+    logerror("[WARN] inet_pton");
     close(sockfd);
     return "";
   }
@@ -125,14 +128,14 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcvtimeo,
                        sizeof(rcvtimeo))) {
 
-    perror("setsockopt");
+    logerror("[WARN] setsockopt");
     return "";
   }
 
   if (-1 ==
       connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
 
-    perror("connect");
+    logerror("[WARN] connect");
     close(sockfd);
     return "";
   }
@@ -161,7 +164,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
     if (-1 == (sent = send(sockfd, msg_p + sent, bytes, 0))) {
 
-      perror("sent");
+      logerror("[WARN] sent");
       close(sockfd);
       return "";
     }
@@ -180,16 +183,16 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   }
 
   close(sockfd);
-  
+
   if (bytes == -1) {
 
-    perror("recv");
+    logerror("[WARN] recv");
     return "";
   }
 
   if (errno == EAGAIN || errno == EWOULDBLOCK) {
 
-    puts("recv: timed out");
+    log(stderr, "[WARN] recv: timeout");
     return "";
   }
 

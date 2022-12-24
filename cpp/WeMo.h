@@ -23,9 +23,9 @@
 #include <vector>
 
 #include "Discover.h"
-#include "Sun.h"
 #include "Serial/Serial.h"
-
+#include "Sun.h"
+#include "log.h"
 class WeMo : public Discover {
 
 public:

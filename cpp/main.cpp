@@ -12,11 +12,13 @@
  ***********************************************/
 
 #include "WeMo.h"
+#include "log.h"
 
 #include <algorithm>
 
 #include <cerrno>
 #include <csignal>
+#include <cstdarg>
 
 #include <sys/signalfd.h>
 #include <sys/time.h>
@@ -46,10 +48,10 @@ void _checktimers(const char *type, int fire = 0) {
       if (fire > 0 && t > last && t < now + 5) {
 
         if ((*it).action == "on") {
-
+          log(stdout, "[INFO] Sending 'ON' to %s\n", (*it).name);
           (*it).plug->On();
         } else if ((*it).action == "off") {
-
+          log(stdout, "[INFO] Sending 'OFF' to %s\n", (*it).name);
           (*it).plug->Off();
         }
 
@@ -177,18 +179,20 @@ void display_schedule(const char *type) {
 
 int main(int argc, char *argv[], char **envp) {
 
-  FILE *log = nullptr;
-  if (nullptr == (log = freopen("wemo.log", "a+", stdout))) {
+  FILE *flog = nullptr;
+  if (nullptr == (flog = freopen("wemo.log", "a+", stdout))) {
 
-    perror("reopen");
+    logerror("[ERR] Failed to re-open log-file");
     return (errno);
   }
 
   if (-1 == dup2(STDOUT_FILENO, STDERR_FILENO)) {
 
-    perror("dup2");
+    logerror("[ERR] Failed to duplicate stdout to stderr");
     return (errno);
   }
+
+  log(stdout, "[INFO] Starting WeMo daemon\n");
 
   sigset_t s_set;
   sigemptyset(&s_set);
@@ -237,8 +241,10 @@ int main(int argc, char *argv[], char **envp) {
 
     FD_ZERO(&fd_in);
     FD_SET(wemo->fd_inotify, &fd_in);
+    FD_SET(wemo->fd_multicast, &fd_in);
     FD_SET(fd_signal, &fd_in);
-    int fd_max = std::max(wemo->fd_inotify, fd_signal);
+    int fd_max =
+        std::max(std::max(wemo->fd_inotify, wemo->fd_multicast), fd_signal);
 
     int fd_serial = wemo->serial.filedescriptor();
 
@@ -251,7 +257,7 @@ int main(int argc, char *argv[], char **envp) {
 
     if (-1 == select(fd_max + 1, &fd_in, nullptr, nullptr, nullptr)) {
 
-      perror("select");
+      logerror("[ERR] select");
 
       finished = 1;
       break;
@@ -312,6 +318,11 @@ int main(int argc, char *argv[], char **envp) {
       }
     }
 
+    if (FD_ISSET(wemo->fd_multicast, &fd_in)) {
+
+      wemo->message();
+    }
+
     if (FD_ISSET(wemo->fd_inotify, &fd_in)) {
 
       if (wemo->ini_rescan()) {
@@ -342,7 +353,7 @@ int main(int argc, char *argv[], char **envp) {
 
       if (0 > read(fd_signal, &siginfo_s, sizeof(siginfo_s))) {
 
-        perror("read");
+        logerror("[ERR] read");
 
         finished = 1;
         break;
@@ -362,6 +373,8 @@ int main(int argc, char *argv[], char **envp) {
 
         checktimers();
       } else if (siginfo_s.ssi_signo == SIGUSR2) {
+
+        log(stdout, "[INFO] Summary:\n");
 
         printf("---------------------------------------------------------------"
                "----------------\n"
@@ -429,7 +442,7 @@ int main(int argc, char *argv[], char **envp) {
         printf("==============================================================="
                "================\n");
 
-        fflush(log);
+        fflush(flog);
       } else if (siginfo_s.ssi_signo == SIGINT ||
                  siginfo_s.ssi_signo == SIGQUIT ||
                  siginfo_s.ssi_signo == SIGTERM ||
@@ -442,9 +455,11 @@ int main(int argc, char *argv[], char **envp) {
 
   close(fd_signal);
 
-  if (log) {
+  log(stdout, "[INFO] Stopped Wemo deamon\n");
 
-    fclose(log);
+  if (flog) {
+
+    fclose(flog);
   }
 
   delete wemo;

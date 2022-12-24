@@ -13,6 +13,8 @@ static constexpr char ini_file[] = "wemo.ini";
 
 WeMo::WeMo() {
 
+  scan();
+
   if (!process()) {
 
     return;
@@ -20,14 +22,14 @@ WeMo::WeMo() {
 
   if (0 > (this->fd_inotify = inotify_init())) {
 
-    perror("inotify_init");
+    logerror("[WARN] Failed to initialize file watch");
     return;
   }
 
   if (-1 == (this->wd_inotify =
                  inotify_add_watch(this->fd_inotify, ini_file, IN_MODIFY))) {
 
-    perror("inotify_add_watch");
+    logerror("[WARN] Failed to add file watch");
   }
 }
 
@@ -69,7 +71,7 @@ bool WeMo::ini_rescan() {
   ssize_t len;
 
   if ((len = read(this->fd_inotify, buf, buf_size)) < 0) {
-    perror("read");
+    logerror("[ERR] Failed to read ini-file");
     return false;
   }
 
@@ -98,7 +100,7 @@ bool WeMo::ini_read(
 
   struct stat st;
   if (0 != stat("wemo.ini", &st)) {
-    perror("stat");
+    logerror("[ERR] Failed to stat ini-file");
     return false;
   }
 
@@ -109,7 +111,7 @@ bool WeMo::ini_read(
   FILE *f = NULL;
   if (NULL == (f = fopen("wemo.ini", "r"))) {
 
-    perror("fopen");
+    logerror("[ERR] Failed to open ini-file");
     return false;
   }
 
@@ -150,12 +152,12 @@ bool WeMo::ini_parse(
   if (ini.find("global") != ini.end()) {
 
     if (ini["global"].find("rescan") != ini["global"].end()) {
+      long t = strtol(ini["global"]["rescan"].c_str(), NULL, 10);
+
+      log(stdout, "[INFO] Rescan set to every %d s\n", t);
 
       this->timers["rescan"].push_back((WeMo::Timer){
-          .plug = NULL,
-          .time = strtol(ini["global"]["rescan"].c_str(), NULL, 10),
-          .action = "rescan",
-          .name = "rescan"});
+          .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
     }
 
     if (ini["global"].find("latitude") != ini["global"].end()) {
@@ -212,7 +214,7 @@ bool WeMo::ini_parse(
               .plug = *it, .time = t, .action = "on", .name = name});
         }
       }
-      
+
       if (ini[name].find("daily") != ini[name].end()) {
 
         if (ini[name]["daily"] == "true") {

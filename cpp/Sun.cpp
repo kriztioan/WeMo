@@ -188,8 +188,7 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
       ss << h << "\r\n";
     }
   }
-  ss << "User-Agent: HTTP-Client/1.0\r\n"
-     << "Connection: close\r\n\r\n";
+  ss << "User-Agent: HTTP-Client/1.0\r\n";
 
   request = ss.str();
 

@@ -32,6 +32,8 @@
 #include <netdb.h>
 #include <unistd.h>
 
+#include "log.h"
+
 class Sun {
 public:
   Sun() = delete;

@@ -17,23 +17,27 @@
 #include <vector>
 
 #include "Plug.h"
+#include "log.h"
 
 class Discover {
 
 public:
   Discover();
-  ~Discover() { destroy(); };
+  ~Discover();
 
   bool scan();
+  void message();
 
   std::vector<Plug *> plugs;
+
+  int fd_multicast;
 
 private:
   static const char *ADDRESS;
 
   static const int PORT = 1900;
 
-  int sockfd;
+  struct ip_mreq mc_req;
 
   bool broadcast();
   bool receive();
