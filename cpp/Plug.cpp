@@ -11,7 +11,7 @@
 
 Plug::Plug(std::string ip, int port) : ip(ip), port(port) {
 
-  log(stdout, "[INFO] Added Plug at %s\n", ip.c_str());
+  Log::info("Added Plug at %s", ip.c_str());
 }
 
 std::string Plug::Name(std::string name) {
@@ -82,6 +82,8 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
     param = response_tag + arg + "</BinaryState>";
   } else {
 
+    Log::err("Invalid SOAP request: %s", service.c_str());
+
     return "";
   }
 
@@ -100,14 +102,18 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   struct protoent *protocol = NULL;
   if (NULL == (protocol = getprotobyname("tcp"))) {
 
+    Log::err("Failed to set TCP protocol for SOAP request");
+
     return "";
   }
 
   int sockfd = -1;
   if (-1 == (sockfd = socket(AF_INET, SOCK_STREAM, protocol->p_proto))) {
 
-    logerror("[WARN] socket");
+    Log::perror("Failed to create socket for SOAP request");
+
     close(sockfd);
+
     return "";
   }
 
@@ -116,8 +122,10 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   remote.sin_port = htons(this->port);
   if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
 
-    logerror("[WARN] inet_pton");
+    Log::perror("Failed to set socket address for SOAP request");
+
     close(sockfd);
+
     return "";
   }
   memset(&remote.sin_zero, '\0', 8);
@@ -128,15 +136,18 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcvtimeo,
                        sizeof(rcvtimeo))) {
 
-    logerror("[WARN] setsockopt");
+    Log::perror("Failed set socket timeout for SOAP request");
+
     return "";
   }
 
   if (-1 ==
       connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
 
-    logerror("[WARN] connect");
+    Log::perror("Failed to connect socket for SOAP request");
+
     close(sockfd);
+
     return "";
   }
 
@@ -164,8 +175,10 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
     if (-1 == (sent = send(sockfd, msg_p + sent, bytes, 0))) {
 
-      logerror("[WARN] sent");
+      Log::perror("Failed to send SOAP request");
+
       close(sockfd);
+
       return "";
     }
     bytes -= sent;
@@ -186,13 +199,14 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
   if (bytes == -1) {
 
-    logerror("[WARN] recv");
+    Log::perror("Failed to receive SOAP response");
+
     return "";
   }
 
   if (errno == EAGAIN || errno == EWOULDBLOCK) {
 
-    log(stderr, "[WARN] recv: timeout");
+    Log::warn("SOAP response timed out");
     return "";
   }
 

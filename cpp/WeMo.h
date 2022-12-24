@@ -23,9 +23,11 @@
 #include <vector>
 
 #include "Discover.h"
+#include "Log.h"
 #include "Serial/Serial.h"
 #include "Sun.h"
-#include "log.h"
+#include "Settings.h"
+
 class WeMo : public Discover {
 
 public:
@@ -41,15 +43,13 @@ public:
     return (a.time < b.time);
   }
 
-  WeMo();
-  ~WeMo();
+  WeMo() = delete;
+  WeMo(const Settings &settings);
+  ~WeMo() = default;
 
-  bool ini_rescan();
-  bool process();
+  bool process(const Settings &settings);
 
   std::map<std::string, std::vector<WeMo::Timer>> timers;
-
-  int fd_inotify;
 
   Serial serial;
 
@@ -59,11 +59,9 @@ public:
   std::vector<Plug *> lux_control;
 
 private:
-  bool ini_read(const char *filename,
-                std::map<std::string, std::map<std::string, std::string>> &ini);
 
   bool
-  ini_parse(std::map<std::string, std::map<std::string, std::string>> &ini);
+  parse_settings(const Settings &settings);
 
   int wd_inotify;
 

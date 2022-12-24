@@ -11,8 +11,9 @@
  *
  ***********************************************/
 
+#include "Log.h"
+#include "Settings.h"
 #include "WeMo.h"
-#include "log.h"
 
 #include <algorithm>
 
@@ -22,6 +23,8 @@
 
 #include <sys/signalfd.h>
 #include <sys/time.h>
+
+Settings settings("wemo.ini");
 
 WeMo *wemo;
 
@@ -48,10 +51,10 @@ void _checktimers(const char *type, int fire = 0) {
       if (fire > 0 && t > last && t < now + 5) {
 
         if ((*it).action == "on") {
-          log(stdout, "[INFO] Sending 'ON' to %s\n", (*it).name);
+          Log::info("Sending 'ON' to %s", (*it).name.c_str());
           (*it).plug->On();
         } else if ((*it).action == "off") {
-          log(stdout, "[INFO] Sending 'OFF' to %s\n", (*it).name);
+          Log::info("Sending 'OFF' to %s", (*it).name.c_str());
           (*it).plug->Off();
         }
 
@@ -103,7 +106,7 @@ void scan() {
   itimer.it_value.tv_sec = 0;
   setitimer(ITIMER_REAL, &itimer, nullptr);
 
-  if (wemo->scan() && wemo->process()) {
+  if (wemo->scan() && wemo->process(settings)) {
 
     rescan = now + 3600;
 
@@ -118,22 +121,23 @@ void scan() {
 
 void display_schedule(const char *type) {
 
-  printf("-----------------------------------------------------------"
-         "----"
-         "----------------\n"
-         "                       registered %s timers and "
-         "schedule    "
-         "                \n"
-         "-----------------------------------------------------------"
-         "----"
-         "----------------\n"
-         "Name                      Action         Date and time     "
-         "    "
-         "                \n"
-         "-----------------------------------------------------------"
-         "----"
-         "----------------\n",
-         type);
+  fprintf(Log::stream,
+          "-----------------------------------------------------------"
+          "----"
+          "----------------\n"
+          "                       registered %s timers and "
+          "schedule    "
+          "                \n"
+          "-----------------------------------------------------------"
+          "----"
+          "----------------\n"
+          "Name                      Action         Date and time     "
+          "    "
+          "                \n"
+          "-----------------------------------------------------------"
+          "----"
+          "----------------\n",
+          type);
 
   std::vector<WeMo::Timer> timestamps;
 
@@ -172,27 +176,19 @@ void display_schedule(const char *type) {
     strftime(date, sizeof(date), "%a, %d %B %Y %H:%M:%S",
              localtime(&(*it).time));
 
-    printf("%-25s %-15s %-37s\n", (*it).name.c_str(), (*it).action.c_str(),
-           date);
+    fprintf(Log::stream, "%-25s %-15s %-37s\n", (*it).name.c_str(),
+            (*it).action.c_str(), date);
   }
 }
 
 int main(int argc, char *argv[], char **envp) {
 
-  FILE *flog = nullptr;
-  if (nullptr == (flog = freopen("wemo.log", "a+", stdout))) {
+  if (0 != Log::init("wemo.log")) {
 
-    logerror("[ERR] Failed to re-open log-file");
-    return (errno);
+    return errno;
   }
 
-  if (-1 == dup2(STDOUT_FILENO, STDERR_FILENO)) {
-
-    logerror("[ERR] Failed to duplicate stdout to stderr");
-    return (errno);
-  }
-
-  log(stdout, "[INFO] Starting WeMo daemon\n");
+  Log::info("Starting WeMo daemon");
 
   sigset_t s_set;
   sigemptyset(&s_set);
@@ -223,7 +219,7 @@ int main(int argc, char *argv[], char **envp) {
   timerclear(&itimer.it_interval);
   timerclear(&itimer.it_value);
 
-  wemo = new WeMo();
+  wemo = new WeMo(settings);
 
   rescan = now + 3600;
   if (wemo->timers.find("rescan") != wemo->timers.end()) {
@@ -240,11 +236,11 @@ int main(int argc, char *argv[], char **envp) {
   while (!finished) {
 
     FD_ZERO(&fd_in);
-    FD_SET(wemo->fd_inotify, &fd_in);
+    FD_SET(settings.fd_inotify, &fd_in);
     FD_SET(wemo->fd_multicast, &fd_in);
     FD_SET(fd_signal, &fd_in);
     int fd_max =
-        std::max(std::max(wemo->fd_inotify, wemo->fd_multicast), fd_signal);
+        std::max(std::max(settings.fd_inotify, wemo->fd_multicast), fd_signal);
 
     int fd_serial = wemo->serial.filedescriptor();
 
@@ -257,7 +253,7 @@ int main(int argc, char *argv[], char **envp) {
 
     if (-1 == select(fd_max + 1, &fd_in, nullptr, nullptr, nullptr)) {
 
-      logerror("[ERR] select");
+      Log::perror("Error in application loop (select)");
 
       finished = 1;
       break;
@@ -273,13 +269,15 @@ int main(int argc, char *argv[], char **envp) {
 
       if (nbytes <= 0) {
 
-        printf("=====================================ERROR====================="
-               "===="
-               "================\n"
-               "serial: %s (%d)\n"
-               "==============================================================="
-               "================\n",
-               wemo->serial.getErrorMessage(), wemo->serial.getErrorCode());
+        fprintf(
+            Log::stream,
+            "=====================================ERROR====================="
+            "===="
+            "================\n"
+            "serial: %s (%d)\n"
+            "==============================================================="
+            "================\n",
+            wemo->serial.getErrorMessage(), wemo->serial.getErrorCode());
 
         continue;
       }
@@ -323,18 +321,21 @@ int main(int argc, char *argv[], char **envp) {
       wemo->message();
     }
 
-    if (FD_ISSET(wemo->fd_inotify, &fd_in)) {
+    if (FD_ISSET(settings.fd_inotify, &fd_in)) {
 
-      if (wemo->ini_rescan()) {
+      if (settings.handler() == 0) {
 
-        rescan = now + 3600;
+        if (wemo->process(settings)) {
 
-        if (wemo->timers.find("rescan") != wemo->timers.end()) {
+          rescan = now + 3600;
 
-          rescan = now + wemo->timers["rescan"].begin()->time;
+          if (wemo->timers.find("rescan") != wemo->timers.end()) {
+
+            rescan = now + wemo->timers["rescan"].begin()->time;
+          }
+
+          checktimers();
         }
-
-        checktimers();
       }
     }
 
@@ -353,7 +354,7 @@ int main(int argc, char *argv[], char **envp) {
 
       if (0 > read(fd_signal, &siginfo_s, sizeof(siginfo_s))) {
 
-        logerror("[ERR] read");
+        Log::perror("Error while reading signal");
 
         finished = 1;
         break;
@@ -374,75 +375,81 @@ int main(int argc, char *argv[], char **envp) {
         checktimers();
       } else if (siginfo_s.ssi_signo == SIGUSR2) {
 
-        log(stdout, "[INFO] Summary:\n");
+        Log::info("SCHEDULE:");
 
-        printf("---------------------------------------------------------------"
-               "----------------\n"
-               "                         %.24s                           \n"
-               "==============================================================="
-               "================\n"
-               "                                    WeMo                       "
-               "                \n"
-               "==============================================================="
-               "================\n"
-               "                               plugs detected                  "
-               "                \n"
-               "---------------------------------------------------------------"
-               "----------------\n"
-               "Name                      State                                "
-               "                \n"
-               "---------------------------------------------------------------"
-               "----------------\n",
-               ctime(&now));
+        fprintf(
+            Log::stream,
+            "---------------------------------------------------------------"
+            "----------------\n"
+            "                         %.24s                           \n"
+            "==============================================================="
+            "================\n"
+            "                                    WeMo                       "
+            "                \n"
+            "==============================================================="
+            "================\n"
+            "                               plugs detected                  "
+            "                \n"
+            "---------------------------------------------------------------"
+            "----------------\n"
+            "Name                      State                                "
+            "                \n"
+            "---------------------------------------------------------------"
+            "----------------\n",
+            ctime(&now));
 
         for (std::vector<Plug *>::iterator it = wemo->plugs.begin();
              it != wemo->plugs.end(); it++) {
 
-          printf("%-25s %-15s\n", (*it)->Name().c_str(),
-                 (*it)->State() ? "on" : "off");
+          fprintf(Log::stream, "%-25s %-15s\n", (*it)->Name().c_str(),
+                  (*it)->State() ? "on" : "off");
         }
 
-        printf("---------------------------------------------------------------"
-               "----------------\n"
-               "                                   serial                      "
-               "                \n"
-               "---------------------------------------------------------------"
-               "----------------\n"
-               "Status                    %-53s\n"
-               "Port                      %-53s\n"
-               "On                        %-53d\n"
-               "Off                       %-53d\n"
-               "Controls                  ",
-               fd_serial > -1 ? "detected" : "not detected",
-               wemo->serial.port().c_str(), wemo->lux_on, wemo->lux_off);
+        fprintf(
+            Log::stream,
+            "---------------------------------------------------------------"
+            "----------------\n"
+            "                                   serial                      "
+            "                \n"
+            "---------------------------------------------------------------"
+            "----------------\n"
+            "Status                    %-53s\n"
+            "Port                      %-53s\n"
+            "On                        %-53d\n"
+            "Off                       %-53d\n"
+            "Controls                  ",
+            fd_serial > -1 ? "detected" : "not detected",
+            wemo->serial.port().c_str(), wemo->lux_on, wemo->lux_off);
 
         int nchars = 0;
 
         if (wemo->lux_control.empty()) {
 
-          nchars += printf("%c", '-');
+          nchars += fprintf(Log::stream, "%c", '-');
         }
 
         for (std::vector<Plug *>::iterator it = wemo->lux_control.begin();
              it != wemo->lux_control.end(); it++) {
 
-          nchars += printf("%s ", (*it)->Name().c_str());
+          nchars += fprintf(Log::stream, "%s ", (*it)->Name().c_str());
         }
 
         for (int i = 0; i < (53 - nchars); i++) {
 
-          putchar(' ');
+          fputc(' ', Log::stream);
         }
-        putchar('\n');
+        fputc('\n', Log::stream);
 
         display_schedule("daily");
 
         display_schedule("sun");
 
-        printf("==============================================================="
-               "================\n");
+        fprintf(
+            Log::stream,
+            "==============================================================="
+            "================\n");
 
-        fflush(flog);
+        fflush(Log::stream);
       } else if (siginfo_s.ssi_signo == SIGINT ||
                  siginfo_s.ssi_signo == SIGQUIT ||
                  siginfo_s.ssi_signo == SIGTERM ||
@@ -455,12 +462,9 @@ int main(int argc, char *argv[], char **envp) {
 
   close(fd_signal);
 
-  log(stdout, "[INFO] Stopped Wemo deamon\n");
+  Log::info("Stopped WeMo deamon");
 
-  if (flog) {
-
-    fclose(flog);
-  }
+  Log::close();
 
   delete wemo;
 

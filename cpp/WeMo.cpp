@@ -9,42 +9,18 @@
 
 #include "WeMo.h"
 
-static constexpr char ini_file[] = "wemo.ini";
-
-WeMo::WeMo() {
+WeMo::WeMo(const Settings &settings) {
 
   scan();
 
-  if (!process()) {
-
-    return;
-  }
-
-  if (0 > (this->fd_inotify = inotify_init())) {
-
-    logerror("[WARN] Failed to initialize file watch");
-    return;
-  }
-
-  if (-1 == (this->wd_inotify =
-                 inotify_add_watch(this->fd_inotify, ini_file, IN_MODIFY))) {
-
-    logerror("[WARN] Failed to add file watch");
-  }
+  process(settings);
 }
 
-bool WeMo::process() {
+bool WeMo::process(const Settings &settings) {
 
   this->timers.clear();
 
-  std::map<std::string, std::map<std::string, std::string>> ini;
-
-  if (!ini_read(ini_file, ini)) {
-
-    return false;
-  }
-
-  if (!ini_parse(ini)) {
+  if (!parse_settings(settings)) {
 
     return false;
   }
@@ -52,96 +28,7 @@ bool WeMo::process() {
   return true;
 }
 
-WeMo::~WeMo() {
-
-  if (0 < this->fd_inotify) {
-
-    inotify_rm_watch(this->fd_inotify, this->wd_inotify);
-
-    close(this->fd_inotify);
-  }
-}
-
-bool WeMo::ini_rescan() {
-
-  ssize_t buf_size = 128 * sizeof(struct inotify_event), i = 0;
-
-  char buf[buf_size];
-
-  ssize_t len;
-
-  if ((len = read(this->fd_inotify, buf, buf_size)) < 0) {
-    logerror("[ERR] Failed to read ini-file");
-    return false;
-  }
-
-  bool rescan = false;
-
-  while (i < len) {
-
-    struct inotify_event *e = (struct inotify_event *)(buf + i);
-
-    if (e->mask & IN_MODIFY)
-      rescan = true;
-    i += (sizeof(struct inotify_event) + e->len);
-  }
-
-  if (rescan) {
-
-    return process();
-  }
-
-  return true;
-}
-
-bool WeMo::ini_read(
-    const char *filename,
-    std::map<std::string, std::map<std::string, std::string>> &ini) {
-
-  struct stat st;
-  if (0 != stat("wemo.ini", &st)) {
-    logerror("[ERR] Failed to stat ini-file");
-    return false;
-  }
-
-  size_t n = 64;
-
-  char *l = (char *)malloc(n), s[64], k[64], v[64];
-
-  FILE *f = NULL;
-  if (NULL == (f = fopen("wemo.ini", "r"))) {
-
-    logerror("[ERR] Failed to open ini-file");
-    return false;
-  }
-
-  while (getline(&l, &n, f) != -1) {
-
-    if (*l == '\n' || *l == '#') {
-
-      continue;
-    }
-
-    if (sscanf(l, "[%[^]]", s) == 1) {
-
-      continue;
-    }
-
-    if (sscanf(l, "%[^=]=%s ", k, v) == 2) {
-
-      ini[s][k] = v;
-    }
-  }
-
-  free(l);
-
-  fclose(f);
-
-  return true;
-}
-
-bool WeMo::ini_parse(
-    std::map<std::string, std::map<std::string, std::string>> &ini) {
+bool WeMo::parse_settings(const Settings &settings) {
 
   std::string name;
 
@@ -149,25 +36,26 @@ bool WeMo::ini_parse(
 
   time_t t;
 
-  if (ini.find("global") != ini.end()) {
+  if (settings.find("global") != settings.end()) {
 
-    if (ini["global"].find("rescan") != ini["global"].end()) {
-      long t = strtol(ini["global"]["rescan"].c_str(), NULL, 10);
+    if (settings["global"].find("rescan") != settings["global"].end()) {
+      long t = strtol(settings["global"]["rescan"].c_str(), NULL, 10);
 
-      log(stdout, "[INFO] Rescan set to every %d s\n", t);
+      Log::info("Polling interval set to %d s", t);
 
       this->timers["rescan"].push_back((WeMo::Timer){
           .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
     }
 
-    if (ini["global"].find("latitude") != ini["global"].end()) {
+    if (settings["global"].find("latitude") != settings["global"].end()) {
 
-      this->latitude = strtof(ini["global"]["latitude"].c_str(), nullptr);
+      this->latitude = strtof(settings["global"]["latitude"].c_str(), nullptr);
     }
 
-    if (ini["global"].find("longitude") != ini["global"].end()) {
+    if (settings["global"].find("longitude") != settings["global"].end()) {
 
-      this->longitude = strtof(ini["global"]["longitude"].c_str(), nullptr);
+      this->longitude =
+          strtof(settings["global"]["longitude"].c_str(), nullptr);
     }
   }
 
@@ -178,11 +66,11 @@ bool WeMo::ini_parse(
 
     name = (*it)->Name();
 
-    if (ini.find(name) != ini.end()) {
+    if (settings.find(name.c_str()) != settings.end()) {
 
-      if (ini[name].find("sun") != ini[name].end()) {
+      if (settings[name].find("sun") != settings[name].end()) {
 
-        if (ini[name]["sun"] == "true") {
+        if (settings[name]["sun"] == "true") {
 
           if (!sun) {
 
@@ -215,13 +103,13 @@ bool WeMo::ini_parse(
         }
       }
 
-      if (ini[name].find("daily") != ini[name].end()) {
+      if (settings[name].find("daily") != settings[name].end()) {
 
-        if (ini[name]["daily"] == "true") {
+        if (settings[name]["daily"] == "true") {
 
-          if (ini[name].find("ontimes") != ini[name].end()) {
+          if (settings[name].find("ontimes") != settings[name].end()) {
 
-            std::istringstream iss(ini[name]["ontimes"]);
+            std::istringstream iss(settings[name]["ontimes"]);
 
             for (std::string token; std::getline(iss, token, ',');) {
 
@@ -237,9 +125,9 @@ bool WeMo::ini_parse(
             }
           }
 
-          if (ini[name].find("offtimes") != ini[name].end()) {
+          if (settings[name].find("offtimes") != settings[name].end()) {
 
-            std::istringstream iss(ini[name]["offtimes"]);
+            std::istringstream iss(settings[name]["offtimes"]);
 
             for (std::string token; std::getline(iss, token, ',');) {
 
@@ -268,51 +156,52 @@ bool WeMo::ini_parse(
 
   lux_on = lux_off = -1;
 
-  if (ini.find("serial") != ini.end()) {
+  if (settings.find("serial") != settings.end()) {
 
-    if (ini["serial"].find("port") != ini["serial"].end()) {
+    if (settings["serial"].find("port") != settings["serial"].end()) {
 
-      if (ini["serial"].find("baudrate") != ini["serial"].end()) {
+      if (settings["serial"].find("baudrate") != settings["serial"].end()) {
 
-        int baudrate = strtol(ini["serial"]["baudrate"].c_str(), nullptr, 10);
+        int baudrate =
+            strtol(settings["serial"]["baudrate"].c_str(), nullptr, 10);
 
         if (!serial.good()) {
 
-          serial.open(ini["serial"]["port"], baudrate);
-        } else if (serial.port() != ini["serial"]["port"] ||
+          serial.open(settings["serial"]["port"], baudrate);
+        } else if (serial.port() != settings["serial"]["port"] ||
                    serial.baudrate() != baudrate) {
 
           serial.close();
 
-          serial.open(ini["serial"]["port"], baudrate);
+          serial.open(settings["serial"]["port"], baudrate);
         }
       } else {
 
         if (!serial.good()) {
 
-          serial.open(ini["serial"]["port"]);
-        } else if (serial.port() != ini["serial"]["port"]) {
+          serial.open(settings["serial"]["port"]);
+        } else if (serial.port() != settings["serial"]["port"]) {
 
           serial.close();
 
-          serial.open(ini["serial"]["port"]);
+          serial.open(settings["serial"]["port"]);
         }
       }
     }
 
-    if (ini["serial"].find("onlux") != ini["serial"].end()) {
+    if (settings["serial"].find("onlux") != settings["serial"].end()) {
 
-      lux_on = strtol(ini["serial"]["onlux"].c_str(), nullptr, 10);
+      lux_on = strtol(settings["serial"]["onlux"].c_str(), nullptr, 10);
     }
 
-    if (ini["serial"].find("offlux") != ini["serial"].end()) {
+    if (settings["serial"].find("offlux") != settings["serial"].end()) {
 
-      lux_off = strtol(ini["serial"]["offlux"].c_str(), nullptr, 10);
+      lux_off = strtol(settings["serial"]["offlux"].c_str(), nullptr, 10);
     }
 
-    if (ini["serial"].find("controls") != ini["serial"].end()) {
+    if (settings["serial"].find("controls") != settings["serial"].end()) {
 
-      std::istringstream iss(ini["serial"]["controls"]);
+      std::istringstream iss(settings["serial"]["controls"]);
 
       for (std::string token; std::getline(iss, token, ',');) {
 

@@ -15,7 +15,7 @@ Discover::Discover() {
 
   if (-1 == (this->fd_multicast = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))) {
 
-    logerror("[ERR] Failed to open UDP socket");
+    Log::perror("Failed to open UDP socket");
     return;
   }
 
@@ -23,7 +23,7 @@ Discover::Discover() {
   if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_MULTICAST_LOOP, &no,
                        sizeof(no))) {
 
-    logerror("[ERR] Failed to configure multicast");
+    Log::perror("Failed to configure multicast");
     close(this->fd_multicast);
     return;
   }
@@ -33,7 +33,7 @@ Discover::Discover() {
   if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                        &mc_req, sizeof(mc_req))) {
 
-    logerror("[ERR] Failed to add multicast membership");
+    Log::perror("[ERR] Failed to add multicast membership");
     close(this->fd_multicast);
     return;
   }
@@ -46,7 +46,7 @@ Discover::~Discover() {
   if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_DROP_MEMBERSHIP,
                        &mc_req, sizeof(mc_req))) {
 
-    logerror("[WARN]] Failed to drop multicast membership");
+    Log::perror("[WARN]] Failed to drop multicast membership");
   }
 
   close(this->fd_multicast);
@@ -54,7 +54,7 @@ Discover::~Discover() {
 
 bool Discover::scan() {
 
-  log(stdout, "[INFO] Scanning for Plugs ...\n");
+  Log::info("Scanning for Plugs ...");
 
   destroy();
 
@@ -89,7 +89,7 @@ bool Discover::broadcast() {
   mc.sin_port = htons(Discover::PORT);
   if (0 == inet_aton(Discover::ADDRESS, &mc.sin_addr)) {
 
-    logerror("[ERR] Failed to set multicast broadcast address");
+    Log::perror("Failed to set multicast broadcast address");
     return false;
   }
   memset(&mc.sin_zero, '\0', 8);
@@ -108,7 +108,7 @@ bool Discover::broadcast() {
   if (-1 == sendto(this->fd_multicast, msg.c_str(), msg.size(), 0,
                    (struct sockaddr *)&mc, sizeof(struct sockaddr))) {
 
-    logerror("[ERR] Failed to send multicast message");
+    Log::perror("Failed to send multicast message");
     return false;
   }
 
@@ -123,7 +123,7 @@ bool Discover::receive() {
   if (-1 == setsockopt(this->fd_multicast, SOL_SOCKET, SO_RCVTIMEO,
                        (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
 
-    logerror("[ERR] Failed to set multicast socket timeout");
+    Log::perror("Failed to set multicast socket timeout");
     return false;
   }
 
@@ -131,7 +131,7 @@ bool Discover::receive() {
   if (-1 ==
       setsockopt(fd_multicast, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
 
-    logerror("[ERR] Failed to set multicast socket reuse address");
+    Log::perror("Failed to set multicast socket reuse address");
     return false;
   }
 
@@ -149,7 +149,7 @@ bool Discover::receive() {
                                 (struct sockaddr *)&from, &from_size))) {
 
       if (!(errno == EAGAIN || errno == EWOULDBLOCK))
-        logerror("[INFO] Error while receiving multicast message");
+        Log::perror("Error while receiving multicast message");
       continue;
     }
 
@@ -191,7 +191,7 @@ void Discover::message() {
   time_t timeout = time(NULL) + 3;
   ssize_t bytes;
 
-  log(stdout, "[INFO] Receiving multicast message:\n");
+  Log::info("RECEIVING MULTICAST MESSAGE:");
 
   while (time(NULL) < timeout) {
 
@@ -201,7 +201,7 @@ void Discover::message() {
                                 (struct sockaddr *)&from, &from_size))) {
 
       if (!(errno == EAGAIN || errno == EWOULDBLOCK))
-        logerror("[INFO] Error while receiving multicast message");
+        Log::perror("Error while receiving multicast message");
       continue;
     }
 

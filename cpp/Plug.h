@@ -18,7 +18,8 @@
 #include <netdb.h>
 #include <unistd.h>
 
-#include "log.h"
+#include "Log.h"
+
 class Plug {
 
 public:

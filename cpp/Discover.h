@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "Plug.h"
-#include "log.h"
+#include "Log.h"
 
 class Discover {
 

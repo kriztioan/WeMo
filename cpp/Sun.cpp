@@ -37,18 +37,27 @@ Sun::Sun(float latitude, float longitude)
   std::string json = https_get(url.str(), headers);
 
   rapidjson::Document rapid;
-  if (!rapid.Parse(json.c_str()).HasParseError()) {
-    if (strncmp(rapid["status"].GetString(), "OK", 2) == 0) {
+  rapid.Parse(json.c_str());
 
-      strncpy(store.rise,
-              utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(),
-              17);
-      strncpy(store.set,
-              utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 17);
-    }
+  if (rapid.HasParseError()) {
+
+    Log::err("Failed to parse Sun JSON: %s", rapid.GetParseError());
+    return;
   }
 
-  write_store();
+  if (strncmp(rapid["status"].GetString(), "OK", 2) == 0) {
+
+    strncpy(store.rise,
+            utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(), 17);
+    strncpy(store.set,
+            utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 17);
+
+    write_store();
+
+    return;
+  }
+
+  Log::err("Sun JSON got status %s", rapid["status"].GetString());
 }
 
 int Sun::read_store() {
@@ -83,7 +92,9 @@ void Sun::write_store() {
   if (fd > 0) {
     write(fd, &store, sizeof(store));
     close(fd);
+    return;
   }
+  Log::perror("Failed to write Sun store");
 }
 
 std::string Sun::utc_to_local(const std::string &utc) {
