@@ -11,7 +11,7 @@
 
 Settings::Settings(const std::string &filename) : filename(filename) {
 
-  if (0 > (this->fd_inotify = inotify_init()) {
+  if (0 > (this->fd_inotify = inotify_init())) {
 
     Log::perror("Failed to initialize inotify");
     return;

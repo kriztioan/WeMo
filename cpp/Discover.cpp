@@ -33,7 +33,7 @@ Discover::Discover() {
   if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                        &mc_req, sizeof(mc_req))) {
 
-    Log::perror("[ERR] Failed to add multicast membership");
+    Log::perror("Failed to add multicast membership");
     close(this->fd_multicast);
     return;
   }
@@ -46,7 +46,7 @@ Discover::~Discover() {
   if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_DROP_MEMBERSHIP,
                        &mc_req, sizeof(mc_req))) {
 
-    Log::perror("[WARN]] Failed to drop multicast membership");
+    Log::perror("Failed to drop multicast membership");
   }
 
   close(this->fd_multicast);
@@ -54,7 +54,7 @@ Discover::~Discover() {
 
 bool Discover::scan() {
 
-  Log::info("Scanning for Plugs ...");
+  Log::info("Scanning for Plugs");
 
   destroy();
 

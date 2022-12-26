@@ -155,7 +155,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
                     "Host: " +
                     this->ip + ":" + std::to_string(ntohs(this->port)) +
                     "\r\n"
-                    "User-Agent: WeMo-deamon/1.0\r\n"
+                    "User-Agent: WeMo-daemon/1.0\r\n"
                     "Content-Type: text/xml; charset=\"utf-8\"\r\n"
                     "Content-Length: " +
                     std::to_string(xml.size()) +

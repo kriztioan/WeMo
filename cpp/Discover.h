@@ -16,8 +16,8 @@
 #include <string>
 #include <vector>
 
-#include "Plug.h"
 #include "Log.h"
+#include "Plug.h"
 
 class Discover {
 

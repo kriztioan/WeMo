@@ -16,17 +16,16 @@
 #include <csignal>
 #include <ctime>
 
-#include <sys/inotify.h>
-#include <sys/stat.h>
-
+#include <algorithm>
 #include <map>
 #include <vector>
 
 #include "Discover.h"
 #include "Log.h"
-#include "Serial/Serial.h"
-#include "Sun.h"
 #include "Settings.h"
+#include "Sun.h"
+
+#include <sys/time.h>
 
 class WeMo : public Discover {
 
@@ -47,26 +46,34 @@ public:
   WeMo(const Settings &settings);
   ~WeMo() = default;
 
-  bool process(const Settings &settings);
+  bool load_settings(const Settings &settings);
 
-  std::map<std::string, std::vector<WeMo::Timer>> timers;
+  void check_timers();
+  void check_lux(uint32_t lux);
 
-  Serial serial;
-
-  int lux_on;
-  int lux_off;
-
-  std::vector<Plug *> lux_control;
+  void display_plugs();
+  void display_lux();
+  void display_schedules();
 
 private:
+  void check_timer(const char *schedule);
+  void display_schedule(const char *schedule);
 
-  bool
-  parse_settings(const Settings &settings);
+  const Settings *settings;
 
-  int wd_inotify;
+  std::vector<Plug *> lux_control;
+  std::map<std::string, std::vector<WeMo::Timer>> timers;
+
+  struct itimerval itimer;
+
+  time_t nearest;
+  time_t rescan;
 
   float latitude;
   float longitude;
+
+  int lux_on;
+  int lux_off;
 };
 
 #endif
