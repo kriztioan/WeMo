@@ -38,10 +38,11 @@ public:
   bool On();
   bool Off();
 
+  std::string ip;
+
 private:
   std::string SOAPRequest(std::string service, std::string arg = "");
 
-  std::string ip;
   int port;
 };
 

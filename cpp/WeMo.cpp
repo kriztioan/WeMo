@@ -411,7 +411,26 @@ void WeMo::check_timers() {
 
   if (now >= rescan) {
 
+    std::vector<std::string> ip;
+
+    for (std::vector<Plug *>::iterator it = plugs.begin(); it != plugs.end();
+         it++) {
+
+      ip.emplace_back((*it)->ip);
+    }
+
     scan();
+
+    for (std::vector<std::string>::iterator it = ip.begin(); it != ip.end();
+         it++) {
+
+      if (std::find_if(plugs.begin(), plugs.end(), [&it](const Plug *p) {
+            return *it == (*p)->ip;
+          }) == plugs.end()) {
+
+        Log::info("Lost Plug at %s", it->c_str());
+      }
+    }
 
     load_settings(*settings);
 
