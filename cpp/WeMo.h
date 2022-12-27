@@ -66,8 +66,9 @@ private:
 
   struct itimerval itimer;
 
-  time_t nearest;
-  time_t rescan;
+  time_t nearest_t;
+  time_t rescan_t;
+  time_t trigger_t;
 
   float latitude;
   float longitude;

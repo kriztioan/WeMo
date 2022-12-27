@@ -38,7 +38,7 @@ bool WeMo::load_settings(const Settings &settings) {
       this->timers["rescan"].push_back((WeMo::Timer){
           .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
 
-      rescan = time(NULL) + t;
+      rescan_t = time(NULL) + t;
     }
 
     if (settings["global"].find("latitude") != settings["global"].end()) {
@@ -302,7 +302,7 @@ void WeMo::display_schedule(const char *schedule) {
   if (strcmp(schedule, "daily") == 0) {
 
     timestamps.push_back((WeMo::Timer){
-        .plug = nullptr, .time = rescan, .action = "rescan", .name = "-"});
+        .plug = nullptr, .time = rescan_t, .action = "rescan", .name = "-"});
   }
 
   if (timers.find(schedule) != timers.end()) {
@@ -352,20 +352,20 @@ void WeMo::check_timer(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t, now = time(NULL);
+    time_t t;
 
-    struct tm s_tm = *localtime(&now);
+    struct tm s_tm = *localtime(&trigger_t);
     s_tm.tm_sec = 0;
     s_tm.tm_min = 0;
     s_tm.tm_hour = 0;
 
     time_t today = mktime(&s_tm);
 
-    nearest = today + timers[schedule][0].time;
+    nearest_t = today + timers[schedule][0].time;
 
-    if (now >= nearest) {
+    if (trigger_t >= nearest_t) {
 
-      nearest += (3600 * 24);
+      nearest_t += (3600 * 24);
     }
 
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
@@ -373,7 +373,7 @@ void WeMo::check_timer(const char *schedule) {
 
       t = today + (*it).time;
 
-      if (t >= now && t <= (now + 5)) {
+      if (t >= trigger_t && t <= (trigger_t+ 5)) {
 
         if ((*it).action == "on") {
 
@@ -388,14 +388,14 @@ void WeMo::check_timer(const char *schedule) {
         t += (3600 * 24);
       }
 
-      if (now >= t) {
+      if (trigger_t >= t) {
 
         t += (3600 * 24);
       }
 
-      if (t < nearest) {
+      if (t < nearest_t) {
 
-        nearest = t;
+        nearest_t = t;
       }
     }
   }
@@ -407,9 +407,9 @@ void WeMo::check_timers() {
 
   timerclear(&itimer.it_value);
 
-  time_t now = time(NULL);
+  trigger_t = time(NULL);
 
-  if (now >= rescan) {
+  if (trigger_t >= rescan_t) {
 
     std::vector<std::string> ip;
 
@@ -425,7 +425,7 @@ void WeMo::check_timers() {
          it++) {
 
       if (std::find_if(plugs.begin(), plugs.end(), [&it](const Plug *p) {
-            return *it == (*p)->ip;
+            return *it == p->ip;
           }) == plugs.end()) {
 
         Log::info("Lost Plug at %s", it->c_str());
@@ -434,31 +434,31 @@ void WeMo::check_timers() {
 
     load_settings(*settings);
 
-    rescan = now + 3600;
+    rescan_t = trigger_t + 3600;
     if (timers.find("rescan") != timers.end()) {
 
-      rescan = now + timers["rescan"].begin()->time;
+      rescan_t = trigger_t + timers["rescan"].begin()->time;
     }
   }
-  nearest = rescan;
+  nearest_t = rescan_t;
 
   check_timer("daily");
 
-  time_t t = nearest;
+  time_t t = nearest_t;
 
   check_timer("sun");
 
-  if (t < nearest) {
+  if (t < nearest_t) {
 
-    nearest = t;
+    nearest_t = t;
   }
 
-  if (nearest > rescan) {
+  if (nearest_t > rescan_t) {
 
-    nearest = rescan;
+    nearest_t = rescan_t;
   }
 
-  itimer.it_value.tv_sec = nearest - now;
+  itimer.it_value.tv_sec = nearest_t - trigger_t;
 
   setitimer(ITIMER_REAL, &itimer, NULL);
 }
