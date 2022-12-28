@@ -31,14 +31,23 @@ bool WeMo::load_settings(const Settings &settings) {
   if (settings.find("global") != settings.end()) {
 
     if (settings["global"].find("rescan") != settings["global"].end()) {
+
+      static time_t tt = 0;
+
       t = strtol(settings["global"]["rescan"].c_str(), NULL, 10);
 
-      Log::info("Polling interval set to %d s", t);
+      if (t != tt) {
+
+        Log::info("Polling interval set to %d s", t);
+
+        rescan_t = time(NULL) + t;
+
+        tt = t;
+      }
 
       this->timers["rescan"].push_back((WeMo::Timer){
           .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
 
-      rescan_t = time(NULL) + t;
     }
 
     if (settings["global"].find("latitude") != settings["global"].end()) {
@@ -340,7 +349,7 @@ void WeMo::display_schedule(const char *schedule) {
   for (std::vector<WeMo::Timer>::iterator it = timestamps.begin();
        it != timestamps.end(); it++) {
 
-    strftime(date, sizeof(date), "%a, %d %B %Y %H:%M:%S",
+    strftime(date, sizeof(date), "%a, %B %d,%Y %H:%M:%S",
              localtime(&(*it).time));
 
     fprintf(Log::stream, "%-25s %-15s %-37s\n", (*it).name.c_str(),
@@ -373,7 +382,7 @@ void WeMo::check_timer(const char *schedule) {
 
       t = today + (*it).time;
 
-      if (t >= trigger_t && t <= (trigger_t+ 5)) {
+      if (t >= (trigger_t - 3) && t <= (trigger_t + 3)) {
 
         if ((*it).action == "on") {
 
@@ -407,7 +416,20 @@ void WeMo::check_timers() {
 
   timerclear(&itimer.it_value);
 
+  setitimer(ITIMER_REAL, &itimer, NULL);
+
   trigger_t = time(NULL);
+
+  check_timer("daily");
+
+  time_t t = nearest_t;
+
+  check_timer("sun");
+
+  if (t < nearest_t) {
+
+    nearest_t = t;
+  }
 
   if (trigger_t >= rescan_t) {
 
@@ -440,18 +462,6 @@ void WeMo::check_timers() {
       rescan_t = trigger_t + timers["rescan"].begin()->time;
     }
   }
-  nearest_t = rescan_t;
-
-  check_timer("daily");
-
-  time_t t = nearest_t;
-
-  check_timer("sun");
-
-  if (t < nearest_t) {
-
-    nearest_t = t;
-  }
 
   if (nearest_t > rescan_t) {
 
@@ -459,6 +469,17 @@ void WeMo::check_timers() {
   }
 
   itimer.it_value.tv_sec = nearest_t - trigger_t;
+  if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
 
-  setitimer(ITIMER_REAL, &itimer, NULL);
+    Log::perror("Failed to set timer");
+
+    return;
+  }
+
+  char date[64];
+
+  strftime(date, sizeof(date), "%a, %B %d, %Y at %H:%M:%S",
+           localtime(&nearest_t));
+
+  Log::info("Timer set for %s", date);
 }
