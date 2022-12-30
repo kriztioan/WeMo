@@ -99,20 +99,12 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
       "</s:Body>"
       "</s:Envelope>\r\n";
 
-  struct protoent *protocol = NULL;
-  if (NULL == (protocol = getprotobyname("tcp"))) {
+  int fd_socket = -1;
+  if (-1 == (fd_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP))) {
 
-    Log::err("Failed to set TCP protocol for SOAP request");
+    Log::perror("Failed to create TCP socket");
 
-    return "";
-  }
-
-  int sockfd = -1;
-  if (-1 == (sockfd = socket(AF_INET, SOCK_STREAM, protocol->p_proto))) {
-
-    Log::perror("Failed to create socket for SOAP request");
-
-    close(sockfd);
+    close(fd_socket);
 
     return "";
   }
@@ -122,9 +114,9 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   remote.sin_port = htons(this->port);
   if (1 != inet_pton(remote.sin_family, this->ip.c_str(), &remote.sin_addr)) {
 
-    Log::perror("Failed to set socket address for SOAP request");
+    Log::perror("Failed to set socket address");
 
-    close(sockfd);
+    close(fd_socket);
 
     return "";
   }
@@ -133,20 +125,28 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   struct timeval rcvtimeo;
   rcvtimeo.tv_sec = 3;
   rcvtimeo.tv_usec = 0;
-  if (-1 == setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&rcvtimeo,
-                       sizeof(rcvtimeo))) {
+  if (-1 == setsockopt(fd_socket, SOL_SOCKET, SO_RCVTIMEO,
+                       (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
 
-    Log::perror("Failed set socket timeout for SOAP request");
+    Log::perror("Failed set socket timeout");
 
     return "";
   }
 
+  int yes = 1;
   if (-1 ==
-      connect(sockfd, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
+      setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
+
+    Log::perror("Failed to set socket reuse address");
+    return "";
+  }
+
+  if (-1 ==
+      connect(fd_socket, (struct sockaddr *)&remote, sizeof(struct sockaddr))) {
 
     Log::perror("Failed to connect socket for SOAP request");
 
-    close(sockfd);
+    close(fd_socket);
 
     return "";
   }
@@ -173,11 +173,11 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
   while (bytes > 0) {
 
-    if (-1 == (sent = send(sockfd, msg_p + sent, bytes, 0))) {
+    if ((sent = send(fd_socket, msg_p + sent, bytes, 0)) <= 0) {
 
       Log::perror("Failed to send SOAP request");
 
-      close(sockfd);
+      close(fd_socket);
 
       return "";
     }
@@ -188,25 +188,19 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
   char buff[2048];
 
-  while ((bytes = recv(sockfd, buff, sizeof(buff) - 1, 0))) {
+  while ((bytes = recv(fd_socket, buff, sizeof(buff) - 1, 0)) > 0) {
 
     buff[bytes] = '\0';
 
     response.append(buff, bytes);
   }
 
-  close(sockfd);
+  close(fd_socket);
 
   if (bytes == -1) {
 
-    Log::perror("Failed to receive SOAP response");
+    Log::perror("Error while receiving SOAP response");
 
-    return "";
-  }
-
-  if (errno == EAGAIN || errno == EWOULDBLOCK) {
-
-    Log::warn("SOAP response timed out");
     return "";
   }
 

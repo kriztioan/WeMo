@@ -47,7 +47,6 @@ bool WeMo::load_settings(const Settings &settings) {
 
       this->timers["rescan"].push_back((WeMo::Timer){
           .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
-
     }
 
     if (settings["global"].find("latitude") != settings["global"].end()) {
@@ -281,6 +280,15 @@ void WeMo::display_lux() {
 
 void WeMo::display_schedules() {
 
+  trigger_t = time(NULL);
+
+  struct tm s_tm = *localtime(&trigger_t);
+  s_tm.tm_sec = 0;
+  s_tm.tm_min = 0;
+  s_tm.tm_hour = 0;
+
+  today_t = mktime(&s_tm);
+
   display_schedule("daily");
 
   display_schedule("sun");
@@ -316,21 +324,14 @@ void WeMo::display_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t, now = time(NULL);
-
-    struct tm s_tm = *localtime(&now);
-    s_tm.tm_sec = 0;
-    s_tm.tm_min = 0;
-    s_tm.tm_hour = 0;
-
-    time_t today = mktime(&s_tm);
+    time_t t;
 
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today + (*it).time;
+      t = today_t + (*it).time;
 
-      if (now >= t) {
+      if (trigger_t >= t) {
 
         t += (3600 * 24);
       }
@@ -363,14 +364,7 @@ void WeMo::check_schedule(const char *schedule) {
 
     time_t t;
 
-    struct tm s_tm = *localtime(&trigger_t);
-    s_tm.tm_sec = 0;
-    s_tm.tm_min = 0;
-    s_tm.tm_hour = 0;
-
-    time_t today = mktime(&s_tm);
-
-    nearest_t = today + timers[schedule][0].time;
+    nearest_t = today_t + timers[schedule][0].time;
 
     if (trigger_t >= nearest_t) {
 
@@ -380,9 +374,9 @@ void WeMo::check_schedule(const char *schedule) {
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today + (*it).time;
+      t = today_t + (*it).time;
 
-      if (t >= (trigger_t - 3) && t <= (trigger_t + 3)) {
+      if (t >= (trigger_t - 5) && t <= (trigger_t + 5)) {
 
         if ((*it).action == "on") {
 
@@ -412,13 +406,19 @@ void WeMo::check_schedule(const char *schedule) {
 
 void WeMo::check_timers() {
 
+  trigger_t = time(NULL);
+
   timerclear(&itimer.it_interval);
 
   timerclear(&itimer.it_value);
 
   setitimer(ITIMER_REAL, &itimer, NULL);
 
-  trigger_t = time(NULL);
+  struct tm s_tm = *localtime(&trigger_t);
+  s_tm.tm_sec = 0;
+  s_tm.tm_min = 0;
+  s_tm.tm_hour = 0;
+  today_t = mktime(&s_tm);
 
   check_schedule("daily");
 
@@ -468,7 +468,7 @@ void WeMo::check_timers() {
     nearest_t = rescan_t;
   }
 
-  itimer.it_value.tv_sec = nearest_t - trigger_t;
+  itimer.it_value.tv_sec = nearest_t - time(NULL);
   if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
 
     Log::perror("Failed to set timer");

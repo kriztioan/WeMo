@@ -61,10 +61,10 @@ int main(int argc, char *argv[], char **envp) {
 
     FD_ZERO(&fd_in);
     FD_SET(settings.fd_inotify, &fd_in);
-    FD_SET(wemo.fd_multicast, &fd_in);
+    FD_SET(wemo.fd_socket, &fd_in);
     FD_SET(fd_signal, &fd_in);
     int fd_max =
-        std::max(std::max(settings.fd_inotify, wemo.fd_multicast), fd_signal);
+        std::max(std::max(settings.fd_inotify, wemo.fd_socket), fd_signal);
     int fd_sensor = sensor.serial.filedescriptor();
     if (fd_sensor != -1) {
 
@@ -75,7 +75,7 @@ int main(int argc, char *argv[], char **envp) {
 
     if (-1 == select(fd_max + 1, &fd_in, nullptr, nullptr, nullptr)) {
 
-      Log::perror("Error in application loop (select)");
+      Log::perror("Error in application select");
 
       finished = 1;
       break;
@@ -133,7 +133,7 @@ int main(int argc, char *argv[], char **envp) {
       }
     }
 
-    if (FD_ISSET(wemo.fd_multicast, &fd_in)) {
+    if (FD_ISSET(wemo.fd_socket, &fd_in)) {
 
       wemo.message();
     }

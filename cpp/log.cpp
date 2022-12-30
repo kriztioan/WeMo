@@ -133,5 +133,7 @@ int Log::perror(const char *fmt, ...) {
 
   size += fprintf(Log::stream, ": %s\n", strerror(errno));
 
+  fflush(Log::stream);
+
   return size;
 }

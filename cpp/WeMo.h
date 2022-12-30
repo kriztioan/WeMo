@@ -69,6 +69,7 @@ private:
   time_t nearest_t;
   time_t rescan_t;
   time_t trigger_t;
+  time_t today_t;
 
   float latitude;
   float longitude;

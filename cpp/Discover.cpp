@@ -13,46 +13,27 @@ const char *Discover::ADDRESS = "239.255.255.250";
 
 Discover::Discover() {
 
-  if (-1 == (this->fd_multicast = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))) {
+  if (-1 == (this->fd_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))) {
 
     Log::perror("Failed to open UDP socket");
-    return;
-  }
-
-  int no = 0;
-  if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_MULTICAST_LOOP, &no,
-                       sizeof(no))) {
-
-    Log::perror("Failed to configure multicast loop");
-    close(this->fd_multicast);
-    return;
-  }
-
-  mc_req.imr_interface.s_addr = htonl(INADDR_ANY);
-  mc_req.imr_multiaddr.s_addr = inet_addr(Discover::ADDRESS);
-  if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                       &mc_req, sizeof(mc_req))) {
-
-    Log::perror("Failed to add multicast membership");
-    close(this->fd_multicast);
     return;
   }
 
   struct timeval rcvtimeo;
   rcvtimeo.tv_sec = 3;
   rcvtimeo.tv_usec = 0;
-  if (-1 == setsockopt(this->fd_multicast, SOL_SOCKET, SO_RCVTIMEO,
+  if (-1 == setsockopt(this->fd_socket, SOL_SOCKET, SO_RCVTIMEO,
                        (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
 
-    Log::perror("Failed to set multicast socket timeout");
+    Log::perror("Failed to set socket timeout");
     return;
   }
 
   int yes = 1;
   if (-1 ==
-      setsockopt(fd_multicast, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
+      setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
 
-    Log::perror("Failed to set multicast socket reuse address");
+    Log::perror("Failed to set socket reuse address");
     return;
   }
 }
@@ -61,13 +42,7 @@ Discover::~Discover() {
 
   destroy();
 
-  if (-1 == setsockopt(this->fd_multicast, IPPROTO_IP, IP_DROP_MEMBERSHIP,
-                       &mc_req, sizeof(mc_req))) {
-
-    Log::perror("Failed to drop multicast membership");
-  }
-
-  close(this->fd_multicast);
+  close(this->fd_socket);
 }
 
 bool Discover::scan() {
@@ -124,7 +99,7 @@ bool Discover::broadcast() {
                     "USER-AGENT: WeMo Daemon\r\n"
                     "\r\n";
 
-  if (-1 == sendto(this->fd_multicast, msg.c_str(), msg.size(), 0,
+  if (-1 == sendto(this->fd_socket, msg.c_str(), msg.size(), 0,
                    (struct sockaddr *)&mc, sizeof(struct sockaddr))) {
 
     Log::perror("Failed to send multicast message");
@@ -133,15 +108,15 @@ bool Discover::broadcast() {
 
   if (0 == port) {
     socklen_t len = sizeof(struct sockaddr);
-    if (-1 == getsockname(fd_multicast, (sockaddr *)&mc, &len)) {
+    if (-1 == getsockname(fd_socket, (sockaddr *)&mc, &len)) {
 
-      Log::perror("Failed to get port");
+      Log::perror("Failed to get UDP port");
       return false;
     }
 
     port = ntohs(mc.sin_port);
 
-    Log::info("Receiving on port %d", port);
+    Log::info("Receiving UDP on port %d", port);
   }
 
   return true;
@@ -159,12 +134,12 @@ bool Discover::receive() {
 
     memset(&from, 0, from_size);
 
-    if (-1 == (bytes = recvfrom(this->fd_multicast, buff, sizeof(buff), 0,
+    if (-1 == (bytes = recvfrom(this->fd_socket, buff, sizeof(buff), 0,
                                 (struct sockaddr *)&from, &from_size))) {
 
       if (!(errno == EAGAIN || errno == EWOULDBLOCK)) {
 
-        Log::perror("Error while receiving multicast response");
+        Log::perror("Error while receiving response");
       }
 
       continue;
@@ -205,30 +180,17 @@ void Discover::message() {
   struct sockaddr_in from;
   socklen_t from_size = sizeof(struct sockaddr);
   char buff[2048];
-  time_t timeout = time(NULL) + 3;
   ssize_t bytes;
 
   Log::info("RECEIVING MESSAGE");
 
-  while (time(NULL) < timeout) {
+  while ((bytes = recvfrom(this->fd_socket, buff, sizeof(buff), 0,
+                           (struct sockaddr *)&from, &from_size)) > 0) {
 
-    memset(&from, 0, from_size);
+    buff[bytes] = '\0';
 
-    if (-1 == (bytes = recvfrom(this->fd_multicast, buff, sizeof(buff), 0,
-                                (struct sockaddr *)&from, &from_size))) {
-
-      if (!(errno == EAGAIN || errno == EWOULDBLOCK))
-        Log::perror("Error while receiving message");
-      continue;
-    }
-
-    if (bytes > 0) {
-
-      buff[bytes] = '\0';
-
-      fprintf(Log::stream, "%s", buff);
-      fflush(Log::stream);
-    }
+    fprintf(Log::stream, "%s", buff);
+    fflush(Log::stream);
   }
   fputc('\n', Log::stream);
   fflush(Log::stream);

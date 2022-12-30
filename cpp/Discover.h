@@ -30,20 +30,17 @@ public:
 
   std::vector<Plug *> plugs;
 
-  int fd_multicast;
+  int fd_socket;
 
 private:
   static const char *ADDRESS;
 
   static const int PORT = 1900;
 
-  struct ip_mreq mc_req;
-
   int port = 0;
 
   bool broadcast();
   bool receive();
-
   void destroy();
 };
 
