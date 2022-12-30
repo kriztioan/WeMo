@@ -39,6 +39,8 @@ private:
 
   struct ip_mreq mc_req;
 
+  int port = 0;
+
   bool broadcast();
   bool receive();
 

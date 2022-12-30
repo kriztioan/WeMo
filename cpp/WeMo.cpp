@@ -357,7 +357,7 @@ void WeMo::display_schedule(const char *schedule) {
   }
 }
 
-void WeMo::check_timer(const char *schedule) {
+void WeMo::check_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
@@ -420,11 +420,11 @@ void WeMo::check_timers() {
 
   trigger_t = time(NULL);
 
-  check_timer("daily");
+  check_schedule("daily");
 
   time_t t = nearest_t;
 
-  check_timer("sun");
+  check_schedule("sun");
 
   if (t < nearest_t) {
 

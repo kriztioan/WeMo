@@ -56,7 +56,7 @@ public:
   void display_schedules();
 
 private:
-  void check_timer(const char *schedule);
+  void check_schedule(const char *schedule);
   void display_schedule(const char *schedule);
 
   const Settings *settings;

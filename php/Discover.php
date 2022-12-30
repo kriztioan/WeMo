@@ -49,7 +49,8 @@ class Discover {
                  'MAN: "ssdp:discover"',
                  'MX: 2',
                  //'ST: ssdp:all'
-                 'ST: urn:Belkin:device:controllee:1'
+                 'ST: urn:Belkin:device:controllee:1',
+                 'USER-AGENT: WeMo Daemon'
     );
 
     $pkt = implode("\r\n", $msg) . "\r\n\r\n";

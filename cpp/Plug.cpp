@@ -11,7 +11,7 @@
 
 Plug::Plug(std::string ip, int port) : ip(ip), port(port) {
 
-  Log::info("Found Plug at %s", ip.c_str());
+  Log::info("Found Plug at %s:%d", ip.c_str(), port);
 }
 
 std::string Plug::Name(std::string name) {
