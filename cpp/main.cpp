@@ -28,7 +28,8 @@ int main(int argc, char *argv[], char **envp) {
     return errno;
   }
 
-  Log::info("Starting WeMo daemon");
+  Log::info(
+      "WeMo daemon by Christiaan Boersma (christiaanboersma@hotmail.com)");
 
   Settings settings("wemo.ini");
 
