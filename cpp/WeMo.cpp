@@ -11,7 +11,7 @@
 
 WeMo::WeMo(const Settings &settings) {
 
-  scan();
+  discover();
 
   load_settings(settings);
 }
@@ -22,6 +22,9 @@ bool WeMo::load_settings(const Settings &settings) {
 
   timers.clear();
 
+  this->timers["poll"].push_back((WeMo::Timer){
+      .plug = NULL, .time = 3600, .action = "poll", .name = "poll"});
+
   std::string name;
 
   char *m;
@@ -30,23 +33,20 @@ bool WeMo::load_settings(const Settings &settings) {
 
   if (settings.find("global") != settings.end()) {
 
-    if (settings["global"].find("rescan") != settings["global"].end()) {
+    if (settings["global"].find("poll") != settings["global"].end()) {
 
-      static time_t tt = 0;
+      static time_t tt = 3600;
 
-      t = strtol(settings["global"]["rescan"].c_str(), NULL, 10);
+      t = strtol(settings["global"]["poll"].c_str(), NULL, 10);
+
+      timers["poll"].begin()->time = t;
 
       if (t != tt) {
 
-        Log::info("Polling interval set to %d s", t);
-
-        rescan_t = time(NULL) + t;
+        Log::info("Polling interval changed to %d s", t);
 
         tt = t;
       }
-
-      this->timers["rescan"].push_back((WeMo::Timer){
-          .plug = NULL, .time = t, .action = "rescan", .name = "rescan"});
     }
 
     if (settings["global"].find("latitude") != settings["global"].end()) {
@@ -60,6 +60,8 @@ bool WeMo::load_settings(const Settings &settings) {
           strtof(settings["global"]["longitude"].c_str(), nullptr);
     }
   }
+
+  poll_t = time(NULL) + timers["poll"].begin()->time;
 
   Sun *sun = nullptr;
 
@@ -319,7 +321,7 @@ void WeMo::display_schedule(const char *schedule) {
   if (strcmp(schedule, "daily") == 0) {
 
     timestamps.push_back((WeMo::Timer){
-        .plug = nullptr, .time = rescan_t, .action = "rescan", .name = "-"});
+        .plug = nullptr, .time = poll_t, .action = "poll", .name = "-"});
   }
 
   if (timers.find(schedule) != timers.end()) {
@@ -358,6 +360,31 @@ void WeMo::display_schedule(const char *schedule) {
   }
 }
 
+void WeMo::poll() {
+
+  std::vector<std::string> ip;
+  for (std::vector<Plug *>::iterator it = plugs.begin(); it != plugs.end();
+       it++) {
+
+    ip.emplace_back((*it)->ip);
+  }
+
+  discover();
+
+  for (std::vector<std::string>::iterator it = ip.begin(); it != ip.end();
+       it++) {
+
+    if (std::find_if(plugs.begin(), plugs.end(), [&it](const Plug *p) {
+          return *it == p->ip;
+        }) == plugs.end()) {
+
+      Log::info("Lost Plug at %s", it->c_str());
+    }
+  }
+
+  load_settings(*settings);
+}
+
 void WeMo::check_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
@@ -376,7 +403,7 @@ void WeMo::check_schedule(const char *schedule) {
 
       t = today_t + (*it).time;
 
-      if (t >= (trigger_t - 5) && t <= (trigger_t + 5)) {
+      if (t >= trigger_t && t <= (trigger_t + 3)) {
 
         if ((*it).action == "on") {
 
@@ -406,7 +433,14 @@ void WeMo::check_schedule(const char *schedule) {
 
 void WeMo::check_timers() {
 
-  trigger_t = time(NULL);
+  struct timeval t_val;
+  if (-1 == gettimeofday(&t_val, NULL)) {
+
+    Log::perror("Failed to get time of day");
+
+    return;
+  }
+  trigger_t = t_val.tv_sec;
 
   timerclear(&itimer.it_interval);
 
@@ -431,44 +465,24 @@ void WeMo::check_timers() {
     nearest_t = t;
   }
 
-  if (trigger_t >= rescan_t) {
+  if (trigger_t >= poll_t) {
 
-    std::vector<std::string> ip;
-
-    for (std::vector<Plug *>::iterator it = plugs.begin(); it != plugs.end();
-         it++) {
-
-      ip.emplace_back((*it)->ip);
-    }
-
-    scan();
-
-    for (std::vector<std::string>::iterator it = ip.begin(); it != ip.end();
-         it++) {
-
-      if (std::find_if(plugs.begin(), plugs.end(), [&it](const Plug *p) {
-            return *it == p->ip;
-          }) == plugs.end()) {
-
-        Log::info("Lost Plug at %s", it->c_str());
-      }
-    }
-
-    load_settings(*settings);
-
-    rescan_t = trigger_t + 3600;
-    if (timers.find("rescan") != timers.end()) {
-
-      rescan_t = trigger_t + timers["rescan"].begin()->time;
-    }
+    poll();
   }
 
-  if (nearest_t > rescan_t) {
+  if (nearest_t > poll_t) {
 
-    nearest_t = rescan_t;
+    nearest_t = poll_t;
   }
 
-  itimer.it_value.tv_sec = nearest_t - time(NULL);
+  if (-1 == gettimeofday(&t_val, NULL)) {
+
+    Log::perror("Failed to get time of day");
+
+    return;
+  }
+
+  itimer.it_value = {nearest_t - t_val.tv_sec - 1, 1000000 - t_val.tv_usec};
   if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
 
     Log::perror("Failed to set timer");

@@ -59,6 +59,8 @@ private:
   void check_schedule(const char *schedule);
   void display_schedule(const char *schedule);
 
+  void poll();
+
   const Settings *settings;
 
   std::vector<Plug *> lux_control;
@@ -67,7 +69,7 @@ private:
   struct itimerval itimer;
 
   time_t nearest_t;
-  time_t rescan_t;
+  time_t poll_t;
   time_t trigger_t;
   time_t today_t;
 

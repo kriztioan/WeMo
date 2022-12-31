@@ -25,7 +25,7 @@ public:
   Discover();
   ~Discover();
 
-  bool scan();
+  bool discover();
   void message();
 
   std::vector<Plug *> plugs;

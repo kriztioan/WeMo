@@ -45,7 +45,7 @@ Discover::~Discover() {
   close(this->fd_socket);
 }
 
-bool Discover::scan() {
+bool Discover::discover() {
 
   Log::info("Scanning for Plugs");
 
