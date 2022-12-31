@@ -90,7 +90,10 @@ void Sun::write_store() {
 
   int fd = open(store_file, O_WRONLY | O_CREAT, 0644);
   if (fd > 0) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overread"
     write(fd, &store, sizeof(store));
+#pragma GCC diagnostic pop
     close(fd);
     return;
   }
