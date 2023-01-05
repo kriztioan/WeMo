@@ -431,14 +431,14 @@ void WeMo::check_schedule(const char *schedule) {
   }
 }
 
-void WeMo::check_timers() {
+int WeMo::check_timers() {
 
   struct timeval t_val;
   if (-1 == gettimeofday(&t_val, NULL)) {
 
     Log::perror("Failed to get time of day");
 
-    return;
+    return errno;
   }
   trigger_t = t_val.tv_sec;
 
@@ -446,13 +446,25 @@ void WeMo::check_timers() {
 
   timerclear(&itimer.it_value);
 
-  setitimer(ITIMER_REAL, &itimer, NULL);
+  if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
+
+    Log::perror("Failed to clear timer");
+
+    return errno;
+  }
 
   struct tm s_tm = *localtime(&trigger_t);
   s_tm.tm_sec = 0;
   s_tm.tm_min = 0;
   s_tm.tm_hour = 0;
   today_t = mktime(&s_tm);
+
+  if (trigger_t >= poll_t) {
+
+    poll();
+  }
+
+  nearest_t = poll_t;
 
   check_schedule("daily");
 
@@ -465,11 +477,6 @@ void WeMo::check_timers() {
     nearest_t = t;
   }
 
-  if (trigger_t >= poll_t) {
-
-    poll();
-  }
-
   if (nearest_t > poll_t) {
 
     nearest_t = poll_t;
@@ -479,15 +486,7 @@ void WeMo::check_timers() {
 
     Log::perror("Failed to get time of day");
 
-    return;
-  }
-
-  itimer.it_value = {nearest_t - t_val.tv_sec - 1, 1000000 - t_val.tv_usec};
-  if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
-
-    Log::perror("Failed to set timer");
-
-    return;
+    return errno;
   }
 
   char date[64];
@@ -495,5 +494,15 @@ void WeMo::check_timers() {
   strftime(date, sizeof(date), "%a, %B %d, %Y at %H:%M:%S",
            localtime(&nearest_t));
 
-  Log::info("Timer set for %s", date);
+  Log::info("Setting timer for %s", date);
+
+  itimer.it_value = {nearest_t - t_val.tv_sec - 1, 1000000 - t_val.tv_usec};
+  if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
+
+    Log::perror("Failed to set timer");
+
+    return errno;
+  }
+
+  return 0;
 }

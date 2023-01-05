@@ -54,11 +54,9 @@ int main(int argc, char *argv[], char **envp) {
 
   fd_set fd_in;
 
-  wemo.check_timers();
+  int finished = wemo.check_timers();
 
-  int finished = 0;
-
-  while (!finished) {
+  while (0 == finished) {
 
     FD_ZERO(&fd_in);
     FD_SET(settings.fd_inotify, &fd_in);
@@ -95,7 +93,7 @@ int main(int argc, char *argv[], char **envp) {
 
         wemo.load_settings(settings);
 
-        wemo.check_timers();
+       finished =  wemo.check_timers();
       }
     }
 
@@ -113,7 +111,7 @@ int main(int argc, char *argv[], char **envp) {
 
       if (siginfo_s.ssi_signo == SIGALRM || siginfo_s.ssi_signo == SIGUSR1) {
 
-        wemo.check_timers();
+        finished = wemo.check_timers();
       } else if (siginfo_s.ssi_signo == SIGUSR2) {
 
         wemo.display_plugs();

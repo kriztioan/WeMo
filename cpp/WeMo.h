@@ -48,7 +48,7 @@ public:
 
   bool load_settings(const Settings &settings);
 
-  void check_timers();
+  int check_timers();
   void check_lux(uint32_t lux);
 
   void display_plugs();
