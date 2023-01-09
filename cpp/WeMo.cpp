@@ -293,7 +293,26 @@ void WeMo::display_schedules() {
 
   display_schedule("daily");
 
-  display_schedule("sun");
+  Sun sun(latitude, longitude);
+
+  fprintf(Log::stream,
+          "---------------------------------------------------------------"
+          "----------------\n"
+          "                                    Sun                        "
+          "                \n"
+          "---------------------------------------------------------------"
+          "----------------\n"
+          "Latitude                  %-53f\n"
+          "Longitude                 %-53f\n"
+          "Sun rise                  %-53s\n"
+          "Sun set                   %-53s\n"
+          "---------------------------------------------------------------"
+          "----------------\n",
+          latitude, longitude, sun.rise().c_str(), sun.set().c_str());
+
+  if (timers["sun"].size()) {
+    display_schedule("sun");
+  }
 }
 
 void WeMo::display_schedule(const char *schedule) {

@@ -47,10 +47,13 @@ Sun::Sun(float latitude, float longitude)
 
   if (strncmp(rapid["status"].GetString(), "OK", 2) == 0) {
 
+    std::string utc(rapid["results"]["sunrise"].GetString());
     strncpy(store.rise,
-            utc_to_local(rapid["results"]["sunrise"].GetString()).c_str(), 17);
+            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(), 17);
+
+    utc = rapid["results"]["sunset"].GetString();
     strncpy(store.set,
-            utc_to_local(rapid["results"]["sunset"].GetString()).c_str(), 17);
+            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(), 17);
 
     write_store();
 
@@ -202,7 +205,7 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
       ss << h << "\r\n";
     }
   }
-  ss << "User-Agent: HTTP-Client/1.0\r\n";
+  ss << "User-Agent: HTTP-Client/1.0\r\n\r\n";
 
   request = ss.str();
 
