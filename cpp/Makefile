@@ -1,5 +1,5 @@
 PROG:=wemod
-LIBS:=-lssl -lcrypto
+LIBS:=-lssl -lcrypto -lz
 CPP_FILES:=$(wildcard *.cpp)
 OBJ_FILES:=$(patsubst %.cpp,%.o,$(CPP_FILES))
 

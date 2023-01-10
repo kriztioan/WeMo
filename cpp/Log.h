@@ -15,6 +15,12 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <cstdlib>
+#include <string>
+
+#include <glob.h>
+#include <regex.h>
+#include <zlib.h>
 
 #include <unistd.h>
 #include <sys/time.h>
@@ -39,7 +45,11 @@ public:
 private:
   enum Level { INFO, WARN, ERR };
 
+  static std::string filename;
+
+  static int log(Log::Level level, const char *fmt, ...);
   static int log(Log::Level level, const char *fmt, va_list ap);
+  static int rotate();
 };
 
 #endif
