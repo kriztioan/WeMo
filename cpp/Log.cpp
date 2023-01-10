@@ -160,7 +160,7 @@ int Log::perror(const char *fmt, ...) {
 
 int Log::rotate() {
 
-  if (ftell(Log::stream) < 200) { //1L << 20) {
+  if (ftell(Log::stream) < (1L << 20)) {
 
     return 0;
   }
@@ -179,7 +179,7 @@ int Log::rotate() {
 
   ptrn = Log::filename;
 
-  const char *escape = "\\+?*.[]()", *p = escape;
+  const char *special = "\\+?*.[](){}^$", *p = special;
   while (*(p++)) {
     std::string::size_type beg = 0, end;
     while ((end = ptrn.find(*p, beg)) != std::string::npos) {
@@ -187,6 +187,7 @@ int Log::rotate() {
       beg = end + 2;
     }
   }
+
   ptrn += "\\.\\([1-9][0-9]*\\)\\.gz";
 
   regex_t reegex;
@@ -199,7 +200,7 @@ int Log::rotate() {
   size_t nmatch = 2;
   regmatch_t pmatch[nmatch];
 
-  long max_number = 0;
+  long log_number = 0;
   for (int i = 0; i < logs.gl_pathc; i++) {
     char *fp = logs.gl_pathv[i];
     if (regexec(&reegex, fp, nmatch, pmatch, 0) != 0) {
@@ -209,19 +210,18 @@ int Log::rotate() {
 
     fp[pmatch[1].rm_eo] = '\0';
     long number = strtol(fp + pmatch[1].rm_so, NULL, 10);
-    if (number > max_number) {
-      max_number = number;
+    if (number > log_number) {
+
+      log_number = number;
     }
   }
-  ++max_number;
+  ++log_number;
 
   regfree(&reegex);
 
   globfree(&logs);
 
-  printf("%ld\n", max_number);
-
-  std::string gzfile = Log::filename + "." + std::to_string(max_number) + ".gz";
+  std::string gzfile = Log::filename + "." + std::to_string(log_number) + ".gz";
 
   struct gzFile_s *gz = gzopen(gzfile.c_str(), "wb9");
   if (NULL == gz) {
