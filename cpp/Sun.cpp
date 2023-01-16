@@ -14,6 +14,7 @@ const char *Sun::store_file = "sun.store";
 Sun::Sun(float latitude, float longitude)
     : latitude(latitude), longitude(longitude) {
 
+  memset(&store, '\0', sizeof(store));
   if (read_store() == 0 && validate_store() == 0) {
 
     return;
@@ -49,11 +50,13 @@ Sun::Sun(float latitude, float longitude)
 
     std::string utc(rapid["results"]["sunrise"].GetString());
     strncpy(store.rise,
-            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(), 17);
+            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(),
+            sizeof(store.rise) - 1);
 
     utc = rapid["results"]["sunset"].GetString();
     strncpy(store.set,
-            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(), 17);
+            utc_to_local(utc.erase(utc.find_last_of(':'), 1)).c_str(),
+            sizeof(store.set) - 1);
 
     write_store();
 
