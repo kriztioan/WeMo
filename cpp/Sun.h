@@ -55,7 +55,7 @@ private:
     float longitude;
     char rise[17];
     char set[17];
-  } store;
+  } store = {};
 
   static const char *store_file;
 

@@ -14,7 +14,6 @@ const char *Sun::store_file = "sun.store";
 Sun::Sun(float latitude, float longitude)
     : latitude(latitude), longitude(longitude) {
 
-  memset(&store, '\0', sizeof(store));
   if (read_store() == 0 && validate_store() == 0) {
 
     return;
