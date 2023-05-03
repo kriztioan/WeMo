@@ -22,8 +22,8 @@ bool WeMo::load_settings(const Settings &settings) {
 
   timers.clear();
 
-  this->timers["poll"].push_back((WeMo::Timer){
-      .plug = NULL, .time = 3600, .action = "poll", .name = "poll"});
+  this->timers["poll"].push_back(
+      (WeMo::Timer){.plug = NULL, .time = 3600, .action = "poll"});
 
   std::string name;
 
@@ -39,7 +39,15 @@ bool WeMo::load_settings(const Settings &settings) {
 
       t = strtol(settings["global"]["poll"].c_str(), NULL, 10);
 
-      timers["poll"].begin()->time = t;
+      if (t >= 60) {
+
+        timers["poll"].begin()->time = t;
+      } else {
+
+        Log::warn("Minimal polling interval is 60 s, not setting %d s", t);
+
+        t = tt;
+      }
 
       if (t != tt) {
 
@@ -65,10 +73,10 @@ bool WeMo::load_settings(const Settings &settings) {
 
   Sun *sun = nullptr;
 
-  for (std::vector<Plug *>::iterator it = this->plugs.begin();
+  for (std::vector<Plug>::iterator it = this->plugs.begin();
        it != this->plugs.end(); it++) {
 
-    name = (*it)->Name();
+    name = it->Name();
 
     if (settings.find(name.c_str()) != settings.end()) {
 
@@ -90,8 +98,8 @@ bool WeMo::load_settings(const Settings &settings) {
 
           t += 15 * 60;
 
-          this->timers["sun"].push_back((WeMo::Timer){
-              .plug = *it, .time = t, .action = "off", .name = name});
+          this->timers["sun"].push_back(
+              (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
 
           t = 3600 * strtol(sun->set().c_str(), &m, 10);
 
@@ -102,8 +110,8 @@ bool WeMo::load_settings(const Settings &settings) {
 
           t -= 30 * 60;
 
-          this->timers["sun"].push_back((WeMo::Timer){
-              .plug = *it, .time = t, .action = "on", .name = name});
+          this->timers["sun"].push_back(
+              (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
         }
       }
 
@@ -124,8 +132,8 @@ bool WeMo::load_settings(const Settings &settings) {
                 t += 60 * strtol(++m, NULL, 10);
               }
 
-              this->timers["daily"].push_back((WeMo::Timer){
-                  .plug = *it, .time = t, .action = "on", .name = name});
+              this->timers["daily"].push_back(
+                  (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
             }
           }
 
@@ -142,8 +150,8 @@ bool WeMo::load_settings(const Settings &settings) {
                 t += 60 * strtol(++m, NULL, 10);
               }
 
-              this->timers["daily"].push_back((WeMo::Timer){
-                  .plug = *it, .time = t, .action = "off", .name = name});
+              this->timers["daily"].push_back(
+                  (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
             }
           }
         }
@@ -178,12 +186,12 @@ bool WeMo::load_settings(const Settings &settings) {
 
       for (std::string token; std::getline(iss, token, ',');) {
 
-        for (std::vector<Plug *>::iterator it = this->plugs.begin();
+        for (std::vector<Plug>::iterator it = this->plugs.begin();
              it != this->plugs.end(); it++) {
 
-          if ((*it)->Name() == token) {
+          if (it->name == token) {
 
-            lux_control.push_back(*it);
+            lux_control.push_back(&(*it));
 
             break;
           }
@@ -226,16 +234,19 @@ void WeMo::display_plugs() {
           "                \n"
           "---------------------------------------------------------------"
           "----------------\n"
-          "Name                      State                                "
+          "Name                      State           Lost                 "
           "                \n"
           "---------------------------------------------------------------"
           "----------------\n");
 
-  for (std::vector<Plug *>::iterator it = plugs.begin(); it != plugs.end();
+  for (std::vector<Plug>::iterator it = plugs.begin(); it != plugs.end();
        it++) {
 
-    fprintf(Log::stream, "%-25s %-15s\n", (*it)->Name().c_str(),
-            (*it)->State() ? "on" : "off");
+    fprintf(Log::stream, "%-25s %-15s %-38d\n", it->name.c_str(),
+            it->lost      ? "?"
+            : it->State() ? "on"
+                          : "off",
+            it->lost);
   }
 
   fprintf(Log::stream,
@@ -266,7 +277,7 @@ void WeMo::display_lux() {
   for (std::vector<Plug *>::iterator it = lux_control.begin();
        it != lux_control.end(); it++) {
 
-    nchars += fprintf(Log::stream, "%s ", (*it)->Name().c_str());
+    nchars += fprintf(Log::stream, "%s ", (*it)->name.c_str());
   }
 
   for (int i = 0; i < (53 - nchars); i++) {
@@ -327,7 +338,7 @@ void WeMo::display_schedule(const char *schedule) {
           "-----------------------------------------------------------"
           "----"
           "----------------\n"
-          "Name                      Action         Date and time     "
+          "Name                      Action          Date and time    "
           "    "
           "                \n"
           "-----------------------------------------------------------"
@@ -339,8 +350,8 @@ void WeMo::display_schedule(const char *schedule) {
 
   if (strcmp(schedule, "daily") == 0) {
 
-    timestamps.push_back((WeMo::Timer){
-        .plug = nullptr, .time = poll_t, .action = "poll", .name = "-"});
+    timestamps.push_back(
+        (WeMo::Timer){.plug = nullptr, .time = poll_t, .action = "poll"});
   }
 
   if (timers.find(schedule) != timers.end()) {
@@ -350,17 +361,15 @@ void WeMo::display_schedule(const char *schedule) {
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today_t + (*it).time;
+      t = today_t + it->time;
 
       if (trigger_t >= t) {
 
         t += (3600 * 24);
       }
 
-      timestamps.push_back((WeMo::Timer){.plug = nullptr,
-                                         .time = t,
-                                         .action = (*it).action,
-                                         .name = (*it).name});
+      timestamps.push_back(
+          (WeMo::Timer){.plug = it->plug, .time = t, .action = it->action});
     }
 
     std::sort(timestamps.begin(), timestamps.end(), WeMo::TimerCompare);
@@ -371,33 +380,43 @@ void WeMo::display_schedule(const char *schedule) {
   for (std::vector<WeMo::Timer>::iterator it = timestamps.begin();
        it != timestamps.end(); it++) {
 
-    strftime(date, sizeof(date), "%a, %B %d,%Y %H:%M:%S",
-             localtime(&(*it).time));
+    strftime(date, sizeof(date), "%a, %B %d,%Y %H:%M:%S", localtime(&it->time));
 
-    fprintf(Log::stream, "%-25s %-15s %-37s\n", (*it).name.c_str(),
-            (*it).action.c_str(), date);
+    fprintf(Log::stream, "%-25s %-15s %-37s\n",
+            it->plug ? it->plug->name.c_str() : "", it->action.c_str(), date);
   }
+
+  fprintf(Log::stream,
+          "---------------------------------------------------------------"
+          "----------------\n");
 }
 
 void WeMo::poll() {
 
-  std::vector<std::string> ip;
-  for (std::vector<Plug *>::iterator it = plugs.begin(); it != plugs.end();
-       it++) {
-
-    ip.emplace_back((*it)->ip);
-  }
+  std::vector<Plug> old = plugs;
 
   discover();
 
-  for (std::vector<std::string>::iterator it = ip.begin(); it != ip.end();
-       it++) {
+  for (std::vector<Plug>::iterator it = old.begin(); it != old.end(); it++) {
 
-    if (std::find_if(plugs.begin(), plugs.end(), [&it](const Plug *p) {
-          return *it == p->ip;
-        }) == plugs.end()) {
+    std::vector<Plug>::iterator p =
+        std::find_if(plugs.begin(), plugs.end(),
+                     [&it](const Plug &p) { return it->ip == p.ip; });
 
-      Log::info("Lost Plug at %s", it->c_str());
+    if (p == plugs.end()) {
+
+      Log::info("Lost Plug at %s (%dx)", it->ip.c_str(), ++it->lost);
+
+      if (it->lost < 5) {
+
+        plugs.push_back(*it);
+      } else {
+
+        Log::info("De-registered Plug at %s", it->ip.c_str());
+      }
+    } else {
+
+      p->lost = 0;
     }
   }
 
@@ -420,18 +439,18 @@ void WeMo::check_schedule(const char *schedule) {
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today_t + (*it).time;
+      t = today_t + it->time;
 
       if (t >= trigger_t && t <= (trigger_t + 3)) {
 
-        if ((*it).action == "on") {
+        if (it->action == "on") {
 
-          Log::info("Sending 'ON' to %s", (*it).name.c_str());
-          (*it).plug->On();
-        } else if ((*it).action == "off") {
+          Log::info("Sending 'ON' to %s", it->plug->name.c_str());
+          it->plug->On();
+        } else if (it->action == "off") {
 
-          Log::info("Sending 'OFF' to %s", (*it).name.c_str());
-          (*it).plug->Off();
+          Log::info("Sending 'OFF' to %s", it->plug->name.c_str());
+          it->plug->Off();
         }
 
         t += (3600 * 24);

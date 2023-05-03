@@ -9,19 +9,22 @@
 
 #include "Plug.h"
 
-Plug::Plug(std::string ip, int port) : ip(ip), port(port) {
-
-  Log::info("Found Plug at %s:%d", ip.c_str(), port);
-}
+Plug::Plug(std::string ip, int port) : ip(ip), port(port) {}
 
 std::string Plug::Name(std::string name) {
 
-  if (name.length() > 0) {
+  if (this->lost) {
 
-    return this->SOAPRequest("SetFriendlyName", name);
+    Log::warn("Plug lost at %s: using last known name '%s'", this->ip.c_str(),
+              this->name.c_str());
+
+    return this->name;
   }
 
-  return this->SOAPRequest("GetFriendlyName");
+  this->name = name.length() > 0 ? this->SOAPRequest("SetFriendlyName", name)
+                                 : this->SOAPRequest("GetFriendlyName");
+
+  return this->name;
 }
 
 bool Plug::isOn() { return this->State() == Plug::ON; }

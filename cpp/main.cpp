@@ -93,7 +93,7 @@ int main(int argc, char *argv[], char **envp) {
 
         wemo.load_settings(settings);
 
-       finished =  wemo.check_timers();
+        finished = wemo.check_timers();
       }
     }
 

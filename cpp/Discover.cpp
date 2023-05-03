@@ -64,15 +64,7 @@ bool Discover::discover() {
   return true;
 }
 
-void Discover::destroy() {
-
-  for (std::vector<Plug *>::iterator it = this->plugs.begin();
-       it != this->plugs.end(); it++) {
-
-    delete *it;
-  }
-  this->plugs.clear();
-}
+void Discover::destroy() { this->plugs.clear(); }
 
 bool Discover::broadcast() {
 
@@ -165,7 +157,11 @@ bool Discover::receive() {
 
             *port++ = '\0';
 
-            this->plugs.push_back(new Plug(ip, atoi(port)));
+            int p = atoi(port);
+
+            Log::info("Found Plug at %s:%d", ip, p);
+
+            this->plugs.emplace_back(ip, p);
           }
         }
       }

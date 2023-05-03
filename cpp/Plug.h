@@ -39,11 +39,13 @@ public:
   bool Off();
 
   std::string ip;
+  std::string name;
+
+  int port;
+  int lost = 0;
 
 private:
   std::string SOAPRequest(std::string service, std::string arg = "");
-
-  int port;
 };
 
 #endif

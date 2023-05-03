@@ -34,7 +34,6 @@ public:
     Plug *plug;
     time_t time;
     std::string action;
-    std::string name;
   } Timer;
 
   inline static bool TimerCompare(WeMo::Timer &a, WeMo::Timer &b) {

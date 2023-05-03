@@ -28,7 +28,7 @@ public:
   bool discover();
   void message();
 
-  std::vector<Plug *> plugs;
+  std::vector<Plug> plugs;
 
   int fd_socket;
 
