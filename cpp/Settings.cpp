@@ -39,6 +39,8 @@ Settings::~Settings() {
 
 int Settings::parse() {
 
+  ini.clear();
+
   size_t n = 64;
 
   char *l = (char *)malloc(n), s[64], k[64], v[64];
