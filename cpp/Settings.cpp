@@ -55,7 +55,7 @@ int Settings::parse() {
 
   while (getline(&l, &n, f) != -1) {
 
-    if (*l == '\n' || *l == '#') {
+    if (*l == '\n' || *l == '#' || *l == ';') {
 
       continue;
     }
