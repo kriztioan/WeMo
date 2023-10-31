@@ -32,7 +32,11 @@ public:
   std::map<std::string, std::string> &operator[](const std::string &key) {
     return this->ini.at(key);
   }
-
+  const std::map<std::string,
+                 std::map<std::string, std::string>>::const_iterator
+  begin() const {
+    return this->ini.begin();
+  }
   const std::map<std::string,
                  std::map<std::string, std::string>>::const_iterator
   end() const {
@@ -41,6 +45,11 @@ public:
   const std::map<std::string,
                  std::map<std::string, std::string>>::const_iterator
   find(const char *key) const {
+    return ini.find(key);
+  }
+  const std::map<std::string,
+                 std::map<std::string, std::string>>::const_iterator
+  find(const std::string &key) const {
     return ini.find(key);
   }
 
