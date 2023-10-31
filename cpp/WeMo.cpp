@@ -89,26 +89,12 @@ bool WeMo::load_settings(const Settings &settings) {
             sun = new Sun(latitude, longitude);
           }
 
-          t = 3600 * strtol(sun->rise().c_str(), &m, 10);
-
-          if (*m == ':') {
-
-            t += 60 * strtol(++m, NULL, 10);
-          }
-
-          t += 15 * 60;
+          t = parse_time(sun->rise().c_str(), false) - 15 * 60;
 
           this->timers["sun"].push_back(
               (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
 
-          t = 3600 * strtol(sun->set().c_str(), &m, 10);
-
-          if (*m == ':') {
-
-            t += 60 * strtol(++m, NULL, 10);
-          }
-
-          t -= 30 * 60;
+          t = parse_time(sun->set().c_str(), false) - 30 * 60;
 
           this->timers["sun"].push_back(
               (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
@@ -125,12 +111,7 @@ bool WeMo::load_settings(const Settings &settings) {
 
             for (std::string token; std::getline(iss, token, ',');) {
 
-              t = 3600 * strtol(token.c_str(), &m, 10);
-
-              if (*m == ':') {
-
-                t += 60 * strtol(++m, NULL, 10);
-              }
+              t = parse_time(token.c_str());
 
               this->timers["daily"].push_back(
                   (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
@@ -143,12 +124,7 @@ bool WeMo::load_settings(const Settings &settings) {
 
             for (std::string token; std::getline(iss, token, ',');) {
 
-              t = 3600 * strtol(token.c_str(), &m, 10);
-
-              if (*m == ':') {
-
-                t += 60 * strtol(++m, NULL, 10);
-              }
+              t = parse_time(token.c_str());
 
               this->timers["daily"].push_back(
                   (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
@@ -300,6 +276,8 @@ void WeMo::display_schedules() {
   s_tm.tm_min = 0;
   s_tm.tm_hour = 0;
 
+  weekday = 1 << s_tm.tm_wday;
+
   today_t = mktime(&s_tm);
 
   display_schedule("daily");
@@ -356,16 +334,18 @@ void WeMo::display_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t;
+    time_t t, wday;
 
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today_t + it->time;
+      t = today_t + TIME_T(it->time);
 
-      if (trigger_t >= t) {
+      wday = TIME_WD(it->time);
 
-        t += (3600 * 24);
+      if (trigger_t >= t || (wday && !(weekday & wday))) {
+
+        t += next_weekday(wday);
       }
 
       timestamps.push_back(
@@ -427,7 +407,7 @@ void WeMo::check_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t;
+    time_t t, wday;
 
     nearest_t = today_t + timers[schedule][0].time;
 
@@ -439,9 +419,12 @@ void WeMo::check_schedule(const char *schedule) {
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today_t + it->time;
+      t = today_t + TIME_T(it->time);
 
-      if (t >= trigger_t && t <= (trigger_t + 3)) {
+      wday = TIME_WD(it->time);
+
+      if ((!wday || (wday && (weekday & wday))) && t >= trigger_t &&
+          t <= (trigger_t + 3)) {
 
         if (it->action == "on") {
 
@@ -453,12 +436,12 @@ void WeMo::check_schedule(const char *schedule) {
           it->plug->Off();
         }
 
-        t += (3600 * 24);
+        t += next_weekday(wday);
       }
 
-      if (trigger_t >= t) {
+      if (trigger_t >= t || (wday && !(weekday & wday))) {
 
-        t += (3600 * 24);
+        t += next_weekday(wday);
       }
 
       if (t < nearest_t) {
@@ -496,6 +479,8 @@ int WeMo::check_timers() {
   s_tm.tm_min = 0;
   s_tm.tm_hour = 0;
   today_t = mktime(&s_tm);
+
+  weekday = 1 << s_tm.tm_wday;
 
   if (trigger_t >= poll_t) {
 
@@ -543,4 +528,79 @@ int WeMo::check_timers() {
   }
 
   return 0;
+}
+
+time_t WeMo::parse_time(const char *str, bool weekdays) {
+
+  char *m;
+  time_t t = 3600 * strtol(str, &m, 10);
+
+  if (*m == ':') {
+
+    t += 60 * strtol(++m, &m, 10);
+  }
+
+  if (*m == ':') {
+
+    t += strtol(++m, &m, 10);
+  }
+
+  if (!weekdays) {
+
+    return t;
+  }
+
+  char days_of_week = 0;
+  if (*m++ == '%') {
+    if (*m == '*') {
+      days_of_week = (char)0b01111111;
+    } else {
+
+      bool has_range = false;
+      char start_char = 0, end_char = 0;
+
+      while (*m) {
+        if (isdigit(*m)) {
+          if (has_range)
+            end_char = *m;
+          else
+            start_char = *m;
+        } else if (start_char && *m == '-') {
+          has_range = true;
+          ++m;
+          continue;
+        } else {
+          ++m;
+          continue;
+        }
+        do {
+          days_of_week |= 1 << (start_char - '1');
+        } while (start_char++ < end_char);
+
+        if (end_char) {
+          end_char = 0;
+          has_range = false;
+        }
+        ++m;
+      }
+    }
+  }
+
+  return t;
+}
+
+time_t WeMo::next_weekday(time_t wday) {
+
+  time_t t = 0;
+
+  int i = 0;
+
+  do {
+
+    i++;
+
+    t += (3600 * 24);
+  } while (wday && !(((weekday << +i) & 0x7F) | (weekday >> (7 - i)) & wday));
+
+  return t;
 }

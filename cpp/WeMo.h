@@ -27,6 +27,9 @@
 
 #include <sys/time.h>
 
+#define TIME_T(x) (x & 0x00FFFFFF)
+#define TIME_WD(x) (x >> 24)
+
 class WeMo : public Discover {
 
 public:
@@ -55,6 +58,8 @@ public:
   void display_schedules();
 
 private:
+  time_t parse_time(const char *str, bool weekdays = true);
+  time_t next_weekday(time_t wday);
   void check_schedule(const char *schedule);
   void display_schedule(const char *schedule);
 
@@ -71,6 +76,7 @@ private:
   time_t poll_t;
   time_t trigger_t;
   time_t today_t;
+  time_t weekday;
 
   float latitude;
   float longitude;
