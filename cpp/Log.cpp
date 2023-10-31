@@ -11,7 +11,7 @@
 
 std::string Log::filename;
 
-FILE *Log::stream = NULL;
+FILE *Log::stream = stderr;
 
 int Log::init(const char *filename) {
 
@@ -55,7 +55,7 @@ int Log::log(Log::Level level, const char *fmt, va_list ap) {
 
   strftime(buff, sizeof(buff), "%Y-%d-%mT%T", tm_info);
 
-  int size = fprintf(Log::stream, "%s.%06d ", buff, timeval_s.tv_usec);
+  int size = fprintf(Log::stream, "%s.%06ld ", buff, timeval_s.tv_usec);
 
   switch (level) {
   case Log::Level::INFO:
@@ -84,7 +84,7 @@ int Log::log(Log::Level level, const char *fmt, ...) {
 
 int Log::info(const char *fmt, ...) {
 
-  va_list(args);
+  va_list args;
 
   va_start(args, fmt);
 
@@ -103,7 +103,7 @@ int Log::info(const char *fmt, ...) {
 
 int Log::warn(const char *fmt, ...) {
 
-  va_list(args);
+  va_list args;
 
   va_start(args, fmt);
 
@@ -122,7 +122,7 @@ int Log::warn(const char *fmt, ...) {
 
 int Log::err(const char *fmt, ...) {
 
-  va_list(args);
+  va_list args;
 
   va_start(args, fmt);
 
@@ -141,7 +141,7 @@ int Log::err(const char *fmt, ...) {
 
 int Log::perror(const char *fmt, ...) {
 
-  va_list(args);
+  va_list args;
 
   va_start(args, fmt);
 
@@ -201,7 +201,7 @@ int Log::rotate() {
   regmatch_t pmatch[nmatch];
 
   long log_number = 0;
-  for (int i = 0; i < logs.gl_pathc; i++) {
+  for (size_t i = 0; i < logs.gl_pathc; i++) {
     char *fp = logs.gl_pathv[i];
     if (regexec(&reegex, fp, nmatch, pmatch, 0) != 0) {
 
