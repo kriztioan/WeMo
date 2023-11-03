@@ -431,13 +431,14 @@ void WeMo::check_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t, wday;
+    time_t t = TIME_T(timers[schedule][0].time),
+           wday = TIME_WD(timers[schedule][0].time);
 
-    nearest_t = today_t + timers[schedule][0].time;
+    nearest_t = today_t + t;
 
     if (trigger_t >= nearest_t) {
 
-      nearest_t += (3600 * 24);
+      nearest_t += next_weekday(wday);
     }
 
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
