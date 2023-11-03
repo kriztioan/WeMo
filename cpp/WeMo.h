@@ -58,7 +58,7 @@ public:
   void display_schedules();
 
 private:
-  time_t parse_time(const char *str, bool weekdays = true);
+  time_t parse_time(const char *str); 
   time_t next_weekday(time_t wday);
   void check_schedule(const char *schedule);
   void display_schedule(const char *schedule);
