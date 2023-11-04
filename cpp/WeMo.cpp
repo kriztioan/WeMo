@@ -91,7 +91,7 @@ bool WeMo::load_settings(const Settings &settings) {
 
           if ((t = parse_time(sun->rise().c_str())) != -1) {
 
-            t -= 15 * 60;
+            t += 15 * 60;
 
             this->timers["sun"].push_back(
                 (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
@@ -103,7 +103,7 @@ bool WeMo::load_settings(const Settings &settings) {
 
           if ((t = parse_time(sun->set().c_str())) != -1) {
 
-            t += 30 * 60;
+            t -= 30 * 60;
 
             this->timers["sun"].push_back(
                 (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
