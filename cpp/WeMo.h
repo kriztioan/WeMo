@@ -58,8 +58,9 @@ public:
   void display_schedules();
 
 private:
-  time_t parse_time(const char *str); 
-  time_t next_weekday(time_t wday);
+  time_t parse_time(const char *str);
+  time_t epoch_time(time_t t); 
+  time_t next_weekday(time_t t, time_t wday);
   void check_schedule(const char *schedule);
   void display_schedule(const char *schedule);
 
@@ -75,7 +76,6 @@ private:
   time_t nearest_t;
   time_t poll_t;
   time_t trigger_t;
-  time_t today_t;
   time_t weekday;
 
   float latitude;

@@ -295,14 +295,8 @@ void WeMo::display_schedules() {
 
   trigger_t = time(NULL);
 
-  struct tm s_tm = *localtime(&trigger_t);
-  s_tm.tm_sec = 0;
-  s_tm.tm_min = 0;
-  s_tm.tm_hour = 0;
-
-  weekday = 1 << s_tm.tm_wday;
-
-  today_t = mktime(&s_tm);
+  struct tm *s_tm = localtime(&trigger_t);
+  weekday = 1 << s_tm->tm_wday;
 
   display_schedule("daily");
 
@@ -363,13 +357,13 @@ void WeMo::display_schedule(const char *schedule) {
     for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
          it != timers[schedule].end(); it++) {
 
-      t = today_t + TIME_T(it->time);
+      t = epoch_time(TIME_T(it->time));
 
       wday = TIME_WD(it->time);
 
       if (trigger_t >= t || (wday && !(weekday & wday))) {
 
-        t += next_weekday(wday);
+        t = next_weekday(t, wday);
       }
 
       timestamps.push_back(
@@ -431,20 +425,20 @@ void WeMo::check_schedule(const char *schedule) {
 
   if (timers.find(schedule) != timers.end()) {
 
-    time_t t = TIME_T(timers[schedule][0].time),
-           wday = TIME_WD(timers[schedule][0].time);
+    std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
 
-    nearest_t = today_t + t;
+    time_t t = TIME_T(it->time), wday = TIME_WD(it->time);
+
+    nearest_t = epoch_time(t);
 
     if (trigger_t >= nearest_t) {
 
-      nearest_t += next_weekday(wday);
+      nearest_t = next_weekday(nearest_t, wday);
     }
 
-    for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
-         it != timers[schedule].end(); it++) {
+    for (++it; it != timers[schedule].end(); it++) {
 
-      t = today_t + TIME_T(it->time);
+      t = epoch_time(TIME_T(it->time));
 
       wday = TIME_WD(it->time);
 
@@ -461,12 +455,12 @@ void WeMo::check_schedule(const char *schedule) {
           it->plug->Off();
         }
 
-        t += next_weekday(wday);
+        t = next_weekday(t, wday);
       }
 
       if (trigger_t >= t || (wday && !(weekday & wday))) {
 
-        t += next_weekday(wday);
+        t = next_weekday(t, wday);
       }
 
       if (t < nearest_t) {
@@ -499,20 +493,15 @@ int WeMo::check_timers() {
     return errno;
   }
 
-  struct tm s_tm = *localtime(&trigger_t);
-  s_tm.tm_sec = 0;
-  s_tm.tm_min = 0;
-  s_tm.tm_hour = 0;
-  today_t = mktime(&s_tm);
-
-  weekday = 1 << s_tm.tm_wday;
-
   if (trigger_t >= poll_t) {
 
     poll();
   }
 
   nearest_t = poll_t;
+
+  struct tm *s_tm = localtime(&trigger_t);
+  weekday = 1 << s_tm->tm_wday;
 
   check_schedule("daily");
 
@@ -643,17 +632,34 @@ time_t WeMo::parse_time(const char *str) {
   return t | (((time_t)days_of_week) << 24);
 }
 
-time_t WeMo::next_weekday(time_t wday) {
+time_t WeMo::next_weekday(time_t t, time_t wday) {
 
-  time_t t = 0;
+  struct tm *s_tm = localtime(&t);
+  s_tm->tm_isdst = -1;
 
   int i = 0;
   do {
 
     ++i;
 
-    t += (3600 * 24);
+    s_tm->tm_mday += 1;
   } while (wday && !((((weekday << i) & 0x7F) | (weekday >> (7 - i))) & wday));
 
+  t = mktime(s_tm);
+
   return t;
+}
+
+time_t WeMo::epoch_time(time_t t) {
+
+  time_t t_now = time(NULL);
+
+  struct tm *s_tm = localtime(&t_now);
+  s_tm->tm_isdst = -1;
+
+  s_tm->tm_hour = t / 3600;
+  s_tm->tm_min = t % 3600 / 60;
+  s_tm->tm_sec = t % 3600 % 60;
+
+  return mktime(s_tm);
 }
