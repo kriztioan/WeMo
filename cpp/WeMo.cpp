@@ -350,16 +350,14 @@ void WeMo::display_schedule(const char *schedule) {
         (WeMo::Timer){.plug = nullptr, .time = poll_t, .action = "poll"});
   }
 
-  if (timers.find(schedule) != timers.end()) {
+  std::map<std::string, std::vector<WeMo::Timer> >::iterator display =
+      timers.find(schedule);
+  if (display != timers.end()) {
 
-    time_t t, wday;
+    for (std::vector<WeMo::Timer>::iterator it = display->second.begin();
+         it != display->second.end(); it++) {
 
-    for (std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
-         it != timers[schedule].end(); it++) {
-
-      t = epoch_time(TIME_T(it->time));
-
-      wday = TIME_WD(it->time);
+      time_t t = epoch_time(TIME_T(it->time)), wday = TIME_WD(it->time);
 
       if (trigger_t >= t || (wday && !(weekday & wday))) {
 
@@ -423,24 +421,14 @@ void WeMo::poll() {
 
 void WeMo::check_schedule(const char *schedule) {
 
-  if (timers.find(schedule) != timers.end()) {
+  std::map<std::string, std::vector<WeMo::Timer>>::iterator check =
+      timers.find(schedule);
+  if (check != timers.end()) {
 
-    std::vector<WeMo::Timer>::iterator it = timers[schedule].begin();
+    for (std::vector<WeMo::Timer>::iterator it = check->second.begin();
+         it != check->second.end(); it++) {
 
-    time_t t = TIME_T(it->time), wday = TIME_WD(it->time);
-
-    nearest_t = epoch_time(t);
-
-    if (trigger_t >= nearest_t) {
-
-      nearest_t = next_weekday(nearest_t, wday);
-    }
-
-    for (++it; it != timers[schedule].end(); it++) {
-
-      t = epoch_time(TIME_T(it->time));
-
-      wday = TIME_WD(it->time);
+      time_t t = epoch_time(TIME_T(it->time)), wday = TIME_WD(it->time);
 
       if ((!wday || (wday && (weekday & wday))) && t >= trigger_t &&
           t <= (trigger_t + 3)) {
@@ -497,7 +485,6 @@ int WeMo::check_timers() {
 
     poll();
   }
-
   nearest_t = poll_t;
 
   struct tm *s_tm = localtime(&trigger_t);
@@ -505,19 +492,13 @@ int WeMo::check_timers() {
 
   check_schedule("daily");
 
-  time_t t = nearest_t;
-
   check_schedule("sun");
 
-  if (t < nearest_t) {
+  char date[64];
+  strftime(date, sizeof(date), "%a, %B %d, %Y at %H:%M:%S",
+           localtime(&nearest_t));
 
-    nearest_t = t;
-  }
-
-  if (nearest_t > poll_t) {
-
-    nearest_t = poll_t;
-  }
+  Log::info("Setting timer for %s", date);
 
   if (-1 == gettimeofday(&t_val, NULL)) {
 
@@ -525,13 +506,6 @@ int WeMo::check_timers() {
 
     return errno;
   }
-
-  char date[64];
-
-  strftime(date, sizeof(date), "%a, %B %d, %Y at %H:%M:%S",
-           localtime(&nearest_t));
-
-  Log::info("Setting timer for %s", date);
 
   itimer.it_value = {nearest_t - t_val.tv_sec - 1, 1000000 - t_val.tv_usec};
   if (-1 == setitimer(ITIMER_REAL, &itimer, NULL)) {
