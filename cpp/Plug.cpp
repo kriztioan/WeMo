@@ -125,17 +125,6 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   }
   memset(&remote.sin_zero, '\0', 8);
 
-  struct timeval rcvtimeo;
-  rcvtimeo.tv_sec = 3;
-  rcvtimeo.tv_usec = 0;
-  if (-1 == setsockopt(fd_socket, SOL_SOCKET, SO_RCVTIMEO,
-                       (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
-
-    Log::perror("Failed set socket timeout");
-
-    return "";
-  }
-
   int yes = 1;
   if (-1 ==
       setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
@@ -184,6 +173,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
 
       return "";
     }
+
     bytes -= sent;
   }
 
