@@ -119,7 +119,7 @@ bool Discover::receive() {
   struct sockaddr_in from;
   socklen_t from_size = sizeof(struct sockaddr);
   char buff[2048];
-  time_t timeout = time(NULL) + 3;
+  time_t timeout = time(NULL) + 5;
   ssize_t bytes;
 
   while (time(NULL) < timeout) {

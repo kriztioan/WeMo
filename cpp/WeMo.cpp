@@ -431,7 +431,7 @@ void WeMo::check_schedule(const char *schedule) {
       time_t t = epoch_time(TIME_T(it->time)), wday = TIME_WD(it->time);
 
       if ((!wday || (wday && (weekday & wday))) && t >= trigger_t &&
-          t <= (trigger_t + 3)) {
+          t <= (trigger_t + 5)) {
 
         if (it->action == "on") {
 
@@ -481,7 +481,7 @@ int WeMo::check_timers() {
     return errno;
   }
 
-  if (trigger_t >= poll_t) {
+  if (poll_t <= (trigger_t + 5)) {
 
     poll();
   }
