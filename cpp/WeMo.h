@@ -76,6 +76,7 @@ private:
   time_t nearest_t;
   time_t poll_t;
   time_t trigger_t;
+  time_t offset_t;
   time_t weekday;
 
   float latitude;

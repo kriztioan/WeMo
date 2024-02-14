@@ -35,7 +35,7 @@ bool WeMo::load_settings(const Settings &settings) {
 
     if (settings["global"].find("poll") != settings["global"].end()) {
 
-      static time_t tt = 3600;
+      static time_t tt = this->timers["poll"].begin()->time;
 
       t = strtol(settings["global"]["poll"].c_str(), NULL, 10);
 
@@ -417,6 +417,8 @@ void WeMo::poll() {
   }
 
   load_settings(*settings);
+
+  offset_t = time(NULL) - trigger_t;
 }
 
 void WeMo::check_schedule(const char *schedule) {
@@ -431,7 +433,7 @@ void WeMo::check_schedule(const char *schedule) {
       time_t t = epoch_time(TIME_T(it->time)), wday = TIME_WD(it->time);
 
       if ((!wday || (wday && (weekday & wday))) && t >= trigger_t &&
-          t <= (trigger_t + 5)) {
+          t <= (trigger_t + offset_t + 3)) {
 
         if (it->action == "on") {
 
@@ -481,7 +483,8 @@ int WeMo::check_timers() {
     return errno;
   }
 
-  if (poll_t <= (trigger_t + 5)) {
+  offset_t = 0;
+  if (poll_t <= (trigger_t + 3)) {
 
     poll();
   }

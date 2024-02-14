@@ -25,8 +25,8 @@ Below is a `wemo.ini` example configuration file.
 [global]
 latitude=37.386051
 longitude=-122.083855
-# rescan interval in seconds
-rescan=600
+# poll interval in seconds
+poll=600
 
 [serial]
 port=/dev/cu.usbmodem14101

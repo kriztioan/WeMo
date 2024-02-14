@@ -160,7 +160,19 @@ int Log::perror(const char *fmt, ...) {
 
 int Log::rotate() {
 
-  if (ftell(Log::stream) < (1L << 20)) {
+  long pos = ftell(Log::stream);
+  if (pos == -1) {
+      
+      if(errno == ESPIPE) { 
+
+        return 0;
+      }
+
+      Log::log(Log::Level::ERR, "Failed to determine file offset position: %s\n", strerror(errno));
+      return -1;
+  }
+
+  if (pos < (1L << 20)) {
 
     return 0;
   }
