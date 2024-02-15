@@ -22,9 +22,10 @@
 class Discover {
 
 public:
-  Discover();
+  Discover() { setup(); }
   ~Discover();
 
+  bool setup();
   bool discover();
   void message();
 
@@ -40,6 +41,8 @@ private:
   static const char *ADDRESS;
 
   int port = 0;
+
+  bool state = false;
 
   bool broadcast();
   bool receive();

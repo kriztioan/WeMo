@@ -146,7 +146,7 @@ std::string Plug::SOAPRequest(std::string service, std::string arg) {
   if (-1 ==
       setsockopt(fd_socket, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes))) {
 
-    Log::perror("Failed to set TCP no delay");
+    Log::perror("Failed to set TCP no-delay");
 
     goto FAIL;
   }

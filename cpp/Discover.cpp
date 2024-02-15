@@ -11,16 +11,18 @@
 
 const char *Discover::ADDRESS = "239.255.255.250";
 
-Discover::Discover() {
+bool Discover::setup() {
 
   if (-1 == (this->fd_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))) {
 
     Log::perror("Failed to open UDP socket");
 
-    return;
+    return false;
   }
 
-  const int yes = 1;
+  const int yes = 1, no = 0;
+
+  struct in_addr addr_if;
 
   struct timeval rcvtimeo;
   rcvtimeo.tv_sec = 1;
@@ -49,20 +51,49 @@ Discover::Discover() {
     goto FAIL;
   }
 
-  return;
+  if (-1 == 
+      setsockopt(fd_socket, IPPROTO_IP, IP_MULTICAST_LOOP, &no, sizeof(no))) {
+
+    Log::perror("Failed to set multicast loop");
+
+    goto FAIL;
+  }
+
+  addr_if.s_addr = INADDR_ANY;
+  if (setsockopt(fd_socket, IPPROTO_IP, IP_MULTICAST_IF, &addr_if, sizeof(addr_if))) {
+
+    Log::perror("Failed setting multicast interface");
+
+    goto FAIL;
+  }
+
+  return true;
 
 FAIL:
   close(this->fd_socket);
+  this->fd_socket = -1;
+  return false;
 }
 
 Discover::~Discover() {
 
-  destroy();
+  if(this->fd_socket != -1) {
 
-  close(this->fd_socket);
+    close(this->fd_socket);
+  }
 }
 
 bool Discover::discover() {
+
+  if (this->fd_socket == -1) {
+
+    if(!this->setup()) {
+
+      Log::err("Failed to set up socket");
+
+      return false;
+    }
+  }
 
   Log::info("Scanning for Plugs");
 

@@ -152,13 +152,13 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
 
     bio = BIO_new_ssl_connect(ctx);
     if (!bio) {
-      goto fail;
+      goto FAIL;
     }
 
     SSL *ssl = nullptr;
     BIO_get_ssl(bio, &ssl);
     if (!ssl) {
-      goto fail;
+      goto FAIL;
     }
     SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
@@ -166,33 +166,33 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
 
     struct hostent *remote_host = gethostbyname(hostname.c_str());
     if (!remote_host) {
-      goto fail;
+      goto FAIL;
     }
 
     BIO_ADDR *bio_addr = BIO_ADDR_new();
     if (!bio_addr) {
       BIO_ADDR_free(bio_addr);
-      goto fail;
+      goto FAIL;
     }
 
     if (BIO_ADDR_rawmake(bio_addr, AF_INET, remote_host->h_addr,
                          remote_host->h_length, htons(port)) != 1) {
       BIO_ADDR_free(bio_addr);
-      goto fail;
+      goto FAIL;
     }
 
     if (BIO_set_conn_address(bio, bio_addr) != 1) {
       BIO_ADDR_free(bio_addr);
-      goto fail;
+      goto FAIL;
     }
 
     BIO_ADDR_free(bio_addr);
 
     if (SSL_get_verify_result(ssl) != X509_V_OK) {
-      goto fail;
+      goto FAIL;
     }
   } else {
-    goto fail;
+    goto FAIL;
   }
 
   ss << "GET ";
@@ -212,13 +212,13 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
   request = ss.str();
 
   if (BIO_puts(bio, request.c_str()) <= 0) {
-    goto fail;
+    goto FAIL;
   }
 
   int bytes_recv;
   while ((bytes_recv = BIO_read(bio, buff, block_size - 1))) {
     if (bytes_recv == -1) {
-      goto fail;
+      goto FAIL;
     }
     buff[bytes_recv] = '\0';
     response.append(buff);
@@ -231,7 +231,7 @@ std::string Sun::https_get(std::string url, std::vector<std::string> headers,
   return response.size() > 4 ? response.substr(response.find("\r\n\r\n") + 4)
                              : std::string();
 
-fail:
+FAIL:
   BIO_free_all(bio);
   bio = nullptr;
   SSL_CTX_free(ctx);
