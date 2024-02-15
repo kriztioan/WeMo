@@ -16,26 +16,43 @@ Discover::Discover() {
   if (-1 == (this->fd_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))) {
 
     Log::perror("Failed to open UDP socket");
+
     return;
   }
 
+  const int yes = 1;
+
   struct timeval rcvtimeo;
-  rcvtimeo.tv_sec = 3;
+  rcvtimeo.tv_sec = 1;
   rcvtimeo.tv_usec = 0;
   if (-1 == setsockopt(this->fd_socket, SOL_SOCKET, SO_RCVTIMEO,
                        (const char *)&rcvtimeo, sizeof(rcvtimeo))) {
 
     Log::perror("Failed to set socket timeout");
-    return;
+
+    goto FAIL;
   }
 
-  int yes = 1;
   if (-1 ==
       setsockopt(fd_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes))) {
 
     Log::perror("Failed to set socket reuse address");
-    return;
+
+    goto FAIL;
   }
+
+  if (-1 ==
+      setsockopt(fd_socket, SOL_SOCKET, SO_REUSEPORT, &yes, sizeof(yes))) {
+
+    Log::perror("Failed to set socket reuse port");
+
+    goto FAIL;
+  }
+
+  return;
+
+FAIL:
+  close(this->fd_socket);
 }
 
 Discover::~Discover() {
@@ -56,12 +73,7 @@ bool Discover::discover() {
     return false;
   }
 
-  if (!this->receive()) {
-
-    return false;
-  }
-
-  return true;
+  return this->receive();
 }
 
 void Discover::destroy() { this->plugs.clear(); }
@@ -70,32 +82,35 @@ bool Discover::broadcast() {
 
   struct sockaddr_in mc;
 
-  mc.sin_family = AF_INET;
-  mc.sin_port = htons(Discover::PORT);
-  if (0 == inet_aton(Discover::ADDRESS, &mc.sin_addr)) {
-
-    Log::perror("Failed to set multicast broadcast address");
-    return false;
-  }
-  memset(&mc.sin_zero, '\0', 8);
-
   std::string msg = "M-SEARCH * HTTP/1.1\r\n"
                     "HOST: " +
                     std::string(Discover::ADDRESS) + ":" +
                     std::to_string(Discover::PORT) +
                     "\r\n"
                     "MAN: \"ssdp:discover\"\r\n"
-                    "MX: 3\r\n"
+                    "MX: " + std::to_string(this->mx) +"\r\n"
                     //"ST: ssdp:all\r\n"
                     "ST: urn:Belkin:device:controllee:1\r\n"
                     "USER-AGENT: WeMo Daemon\r\n"
                     "\r\n";
 
+  mc.sin_family = AF_INET;
+  mc.sin_port = htons(Discover::PORT);
+  if (0 == inet_aton(Discover::ADDRESS, &mc.sin_addr)) {
+
+    Log::perror("Failed to set multicast broadcast address");
+  
+    goto FAIL;
+  }
+  memset(&mc.sin_zero, '\0', 8);
+
+
   if (-1 == sendto(this->fd_socket, msg.c_str(), msg.size(), 0,
                    (struct sockaddr *)&mc, sizeof(struct sockaddr))) {
 
     Log::perror("Failed to send multicast message");
-    return false;
+  
+    goto FAIL;
   }
 
   if (0 == port) {
@@ -103,7 +118,8 @@ bool Discover::broadcast() {
     if (-1 == getsockname(fd_socket, (sockaddr *)&mc, &len)) {
 
       Log::perror("Failed to get UDP port");
-      return false;
+
+      goto FAIL;
     }
 
     port = ntohs(mc.sin_port);
@@ -112,6 +128,11 @@ bool Discover::broadcast() {
   }
 
   return true;
+
+FAIL:
+  close(this->fd_socket);
+  this->fd_socket = -1;
+  return false;
 }
 
 bool Discover::receive() {
@@ -119,7 +140,7 @@ bool Discover::receive() {
   struct sockaddr_in from;
   socklen_t from_size = sizeof(struct sockaddr);
   char buff[2048];
-  time_t timeout = time(NULL) + 5;
+  time_t timeout = time(NULL) + this->mx;
   ssize_t bytes;
 
   while (time(NULL) < timeout) {

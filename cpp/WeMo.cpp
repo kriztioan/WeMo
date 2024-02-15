@@ -389,7 +389,7 @@ void WeMo::display_schedule(const char *schedule) {
 
 void WeMo::poll() {
 
-  std::vector<Plug> old = plugs;
+  std::vector<Plug> old = std::move(plugs);
 
   discover();
 

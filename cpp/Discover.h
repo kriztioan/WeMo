@@ -33,9 +33,11 @@ public:
   int fd_socket;
 
 private:
-  static const char *ADDRESS;
+  static const time_t mx = 3;
 
   static const int PORT = 1900;
+
+  static const char *ADDRESS;
 
   int port = 0;
 
