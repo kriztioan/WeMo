@@ -350,7 +350,7 @@ void WeMo::display_schedule(const char *schedule) {
         (WeMo::Timer){.plug = nullptr, .time = poll_t, .action = "poll"});
   }
 
-  std::map<std::string, std::vector<WeMo::Timer> >::iterator display =
+  std::map<std::string, std::vector<WeMo::Timer>>::iterator display =
       timers.find(schedule);
   if (display != timers.end()) {
 
@@ -437,12 +437,16 @@ void WeMo::check_schedule(const char *schedule) {
 
         if (it->action == "on") {
 
-          Log::info("Sending 'ON' to %s", it->plug->name.c_str());
-          it->plug->On();
+          threads.emplace_back([it]() {
+            Log::info("Sending 'ON' to %s", it->plug->name.c_str());
+            it->plug->On();
+          });
         } else if (it->action == "off") {
 
-          Log::info("Sending 'OFF' to %s", it->plug->name.c_str());
-          it->plug->Off();
+          threads.emplace_back([it]() {
+            Log::info("Sending 'OFF' to %s", it->plug->name.c_str());
+            it->plug->Off();
+          });
         }
 
         t = next_weekday(t, wday);
@@ -457,6 +461,11 @@ void WeMo::check_schedule(const char *schedule) {
 
         nearest_t = t;
       }
+    }
+
+    for (auto &thread : threads) {
+
+      thread.join();
     }
   }
 }
