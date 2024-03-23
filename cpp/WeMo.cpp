@@ -212,14 +212,18 @@ void WeMo::check_lux(uint32_t lux) {
     for (std::vector<Plug *>::iterator it = lux_control.begin();
          it != lux_control.end(); it++) {
 
-      (*it)->On();
+      Log::info("Sending 'ON' to %s", (*it)->name.c_str());
+
+      std::thread(&Plug::On, *it).detach();
     }
   } else if (lux > lux_off && lux_prev <= lux_off) {
 
     for (std::vector<Plug *>::iterator it = lux_control.begin();
          it != lux_control.end(); it++) {
 
-      (*it)->Off();
+      Log::info("Sending 'OFF' to %s", (*it)->name.c_str());
+
+      std::thread(&Plug::Off, *it).detach();
     }
   }
 
@@ -437,16 +441,14 @@ void WeMo::check_schedule(const char *schedule) {
 
         if (it->action == "on") {
 
-          threads.emplace_back([it]() {
-            Log::info("Sending 'ON' to %s", it->plug->name.c_str());
-            it->plug->On();
-          });
+          Log::info("Sending 'ON' to %s", it->plug->name.c_str());
+
+          std::thread(&Plug::On, it->plug).detach();
         } else if (it->action == "off") {
 
-          threads.emplace_back([it]() {
-            Log::info("Sending 'OFF' to %s", it->plug->name.c_str());
-            it->plug->Off();
-          });
+          Log::info("Sending 'OFF' to %s", it->plug->name.c_str());
+
+          std::thread(&Plug::Off, it->plug).detach();
         }
 
         t = next_weekday(t, wday);
@@ -461,11 +463,6 @@ void WeMo::check_schedule(const char *schedule) {
 
         nearest_t = t;
       }
-    }
-
-    for (auto &thread : threads) {
-
-      thread.join();
     }
   }
 }

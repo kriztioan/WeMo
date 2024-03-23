@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <mutex>
 #include <string>
 
 #include <glob.h>
@@ -46,6 +47,8 @@ private:
   enum Level { INFO, WARN, ERR };
 
   static std::string filename;
+
+  static std::mutex mutex;
 
   static int log(Log::Level level, const char *fmt, ...);
   static int log(Log::Level level, const char *fmt, va_list ap);

@@ -134,7 +134,7 @@ int main(int argc, char *argv[], char **envp) {
 
     if (FD_ISSET(wemo.fd_socket, &fd_in)) {
 
-      wemo.message();
+      std::thread(&WeMo::message, &wemo).detach();
     }
   }
 

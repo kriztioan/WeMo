@@ -11,6 +11,8 @@
 
 std::string Log::filename;
 
+std::mutex Log::mutex;
+
 FILE *Log::stream = stderr;
 
 int Log::init(const char *filename) {
@@ -88,6 +90,8 @@ int Log::info(const char *fmt, ...) {
 
   va_start(args, fmt);
 
+  std::lock_guard<std::mutex> guard(mutex);
+
   int size = Log::log(Log::Level::INFO, fmt, args);
 
   va_end(args);
@@ -106,6 +110,8 @@ int Log::warn(const char *fmt, ...) {
   va_list args;
 
   va_start(args, fmt);
+
+  std::lock_guard<std::mutex> guard(mutex);
 
   int size = Log::log(Log::Level::WARN, fmt, args);
 
@@ -126,6 +132,8 @@ int Log::err(const char *fmt, ...) {
 
   va_start(args, fmt);
 
+  std::lock_guard<std::mutex> guard(mutex);
+
   int size = Log::log(Log::Level::ERR, fmt, args);
 
   va_end(args);
@@ -145,6 +153,8 @@ int Log::perror(const char *fmt, ...) {
 
   va_start(args, fmt);
 
+  std::lock_guard<std::mutex> guard(mutex);
+
   int size = Log::log(Log::Level::ERR, fmt, args);
 
   va_end(args);
@@ -162,14 +172,15 @@ int Log::rotate() {
 
   long pos = ftell(Log::stream);
   if (pos == -1) {
-      
-      if(errno == ESPIPE) { 
 
-        return 0;
-      }
+    if (errno == ESPIPE) {
 
-      Log::log(Log::Level::ERR, "Failed to determine file offset position: %s\n", strerror(errno));
-      return -1;
+      return 0;
+    }
+
+    Log::log(Log::Level::ERR, "Failed to determine file offset position: %s\n",
+             strerror(errno));
+    return -1;
   }
 
   if (pos < (1L << 20)) {
