@@ -278,7 +278,7 @@ int Log::rotate() {
     return errno;
   }
 
-  Log::info("Successfully rotated log");
+  Log::log(Log::Level::INFO, "Successfully rotated log\n");
 
   return 1;
 }
