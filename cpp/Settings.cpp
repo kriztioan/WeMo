@@ -18,9 +18,10 @@ Settings::Settings(const std::string &filename) : filename(filename) {
   }
 
   if (-1 == (this->wd_inotify = inotify_add_watch(
-                 this->fd_inotify, filename.c_str(), IN_CLOSE_WRITE))) {
+                 this->fd_inotify, filename.c_str(), IN_CLOSE_WRITE | IN_IGNORED))) {
 
     Log::perror("Failed to add %s watch", filename.c_str());
+
     return;
   }
 
@@ -100,6 +101,20 @@ int Settings::handler() {
     struct inotify_event *e = (struct inotify_event *)(buff + i);
 
     if (e->mask & IN_CLOSE_WRITE) {
+
+      changed = true;
+    }
+
+    if (e->mask & IN_IGNORED) {
+
+      if (-1 == (this->wd_inotify =
+                     inotify_add_watch(this->fd_inotify, filename.c_str(),
+                                       IN_CLOSE_WRITE | IN_IGNORED))) {
+
+        Log::perror("Failed to re-add %s watch", filename.c_str());
+
+        return -1;
+      }
 
       changed = true;
     }
