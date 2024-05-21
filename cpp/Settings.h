@@ -10,6 +10,7 @@
 #ifndef SETTINGS_H_
 #define SETTINGS_H_
 
+#include <fstream>
 #include <map>
 #include <string>
 
@@ -17,6 +18,9 @@
 
 #include <sys/inotify.h>
 #include <sys/stat.h>
+
+#include <openssl/evp.h>
+#include <openssl/md5.h>
 
 #include "Log.h"
 
@@ -59,10 +63,13 @@ public:
 
 private:
   int parse();
+  int md5sum();
 
   std::map<std::string, std::map<std::string, std::string>> ini;
   std::string filename;
   int wd_inotify;
+
+  unsigned char md5[MD5_DIGEST_LENGTH] = {};
 };
 
 #endif

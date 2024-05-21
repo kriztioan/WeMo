@@ -17,11 +17,17 @@ Settings::Settings(const std::string &filename) : filename(filename) {
     return;
   }
 
-  if (-1 == (this->wd_inotify = inotify_add_watch(
-                 this->fd_inotify, filename.c_str(), IN_CLOSE_WRITE | IN_IGNORED))) {
+  if (-1 ==
+      (this->wd_inotify = inotify_add_watch(this->fd_inotify, filename.c_str(),
+                                            IN_CLOSE_WRITE | IN_IGNORED))) {
 
     Log::perror("Failed to add %s watch", filename.c_str());
+    return;
+  }
 
+  if (md5sum() == -1) {
+
+    Log::err("Failed to compute MD5");
     return;
   }
 
@@ -94,7 +100,7 @@ int Settings::handler() {
     return errno;
   }
 
-  bool changed = false;
+  bool triggered = false;
 
   while (i < len) {
 
@@ -102,7 +108,7 @@ int Settings::handler() {
 
     if (e->mask & IN_CLOSE_WRITE) {
 
-      changed = true;
+      triggered = true;
     }
 
     if (e->mask & IN_IGNORED) {
@@ -112,17 +118,16 @@ int Settings::handler() {
                                        IN_CLOSE_WRITE | IN_IGNORED))) {
 
         Log::perror("Failed to re-add %s watch", filename.c_str());
-
         return -1;
       }
 
-      changed = true;
+      triggered = true;
     }
 
     i += (sizeof(struct inotify_event) + e->len);
   }
 
-  if (changed) {
+  if (triggered && md5sum() == 1) {
 
     Log::info("Settings changed");
 
@@ -130,4 +135,68 @@ int Settings::handler() {
   }
 
   return -1;
+}
+
+int Settings::md5sum() {
+
+  std::ifstream ifstr(this->filename, std::ios::in);
+
+  if (ifstr.fail()) {
+
+    Log::perror("Failed to open ini-file", this->filename.c_str());
+
+    return errno;
+  }
+
+  EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+
+  if (ctx == NULL) {
+
+    Log::err("Failed to create MD5 context");
+    return -1;
+  }
+
+  if (EVP_DigestInit_ex(ctx, EVP_md5(), NULL) != 1) {
+
+    Log::err("Failed initialize MD5");
+    return -1;
+  }
+
+  char bytes[4096];
+
+  while (size_t len = ifstr.readsome(bytes, 4096)) {
+
+    if (EVP_DigestUpdate(ctx, bytes, len) != 1) {
+
+      EVP_MD_CTX_free(ctx);
+
+      Log::err("Failed to update MD5");
+      return -1;
+    }
+  }
+
+  unsigned char digest[MD5_DIGEST_LENGTH];
+
+  unsigned int digest_size = MD5_DIGEST_LENGTH;
+
+  if (EVP_DigestFinal_ex(ctx, digest, &digest_size) != 1) {
+
+    EVP_MD_CTX_free(ctx);
+
+    Log::err("Failed to finalize MD5");
+    return -1;
+  }
+
+  EVP_MD_CTX_free(ctx);
+
+  ifstr.close();
+
+  if (memcmp(md5, digest, digest_size) != 0) {
+
+    memcpy(md5, digest, digest_size);
+
+    return 1;
+  }
+
+  return 0;
 }
