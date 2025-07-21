@@ -67,12 +67,12 @@ int Settings::parse() {
       continue;
     }
 
-    if (sscanf(l, "[%[^]]", s) == 1) {
+    if (sscanf(l, "[%63[^]]", s) == 1) {
 
       continue;
     }
 
-    if (sscanf(l, "%[^=]=%s ", k, v) == 2) {
+    if (sscanf(l, "%63[^=]=%63s ", k, v) == 2) {
 
       ini[s][k] = v;
     }
