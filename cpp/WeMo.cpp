@@ -89,28 +89,84 @@ bool WeMo::load_settings(const Settings &settings) {
             sun = new Sun(latitude, longitude);
           }
 
-          if ((t = parse_time(sun->rise().c_str())) != -1) {
+          char k[8];
 
-            t += 15 * 60;
+          int val;
 
-            this->timers["sun"].push_back(
-                (WeMo::Timer){.plug = &(*it), .time = t, .action = "off"});
-          } else {
+          if (settings[name].find("rise") != settings[name].end()) {
 
-            Log::warn("Failed to parse sun rise for '%s' ... ignoring",
-                      name.c_str());
+            if ((t = parse_time(sun->rise().c_str())) != -1) {
+
+              std::istringstream iss(settings[name]["rise"]);
+
+              for (std::string token; std::getline(iss, token, ',');) {
+
+                if (sscanf(token.c_str(), "%7[^:]:%d", k, &val) == 2) {
+
+                  if (strcmp(k, "on") == 0) {
+
+                    this->timers["sun"].push_back((WeMo::Timer){
+                        .plug = &(*it), .time = t + val, .action = "on"});
+                  } else if (strcmp(k, "off") == 0) {
+
+                    this->timers["sun"].push_back((WeMo::Timer){
+                        .plug = &(*it), .time = t + val, .action = "off"});
+                  } else {
+
+                    Log::warn("Invalid parameter in sun rise options '%s' ... "
+                              "ignoring\n",
+                              k);
+                  }
+                } else {
+
+                  Log::warn(
+                      "Failed to parse sun rise options: '%s' ... ignoring\n",
+                      token.c_str());
+                }
+              }
+            } else {
+
+              Log::warn("Failed to parse sun rise for '%s' ... ignoring",
+                        name.c_str());
+            }
           }
 
-          if ((t = parse_time(sun->set().c_str())) != -1) {
+          if (settings[name].find("set") != settings[name].end()) {
 
-            t -= 30 * 60;
+            if ((t = parse_time(sun->set().c_str())) != -1) {
 
-            this->timers["sun"].push_back(
-                (WeMo::Timer){.plug = &(*it), .time = t, .action = "on"});
-          } else {
+              std::istringstream iss(settings[name]["set"]);
 
-            Log::warn("Failed to parse sun set for '%s' ... ignoring",
-                      name.c_str());
+              for (std::string token; std::getline(iss, token, ',');) {
+
+                if (sscanf(token.c_str(), "%7[^:]:%d", k, &val) == 2) {
+
+                  if (strcmp(k, "on") == 0) {
+
+                    this->timers["sun"].push_back((WeMo::Timer){
+                        .plug = &(*it), .time = t + val, .action = "on"});
+                  } else if (strcmp(k, "off") == 0) {
+
+                    this->timers["sun"].push_back((WeMo::Timer){
+                        .plug = &(*it), .time = t + val, .action = "off"});
+                  } else {
+
+                    Log::warn("Invalid parameter in sun set options '%s' ... "
+                              "ignoring\n",
+                              k);
+                  }
+                } else {
+
+                  Log::warn(
+                      "Failed to parse sun set options: '%s' ... ignoring\n",
+                      token.c_str());
+                }
+              }
+            } else {
+
+              Log::warn("Failed to parse sun set for '%s' ... ignoring",
+                        name.c_str());
+            }
           }
         }
       }
