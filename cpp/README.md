@@ -32,6 +32,7 @@ latitude=37.386051
 longitude=-122.083855
 ; rescan interval in seconds
 rescan=600
+max_logs=5
 
 [serial]
 port=/dev/cu.usbmodem14101

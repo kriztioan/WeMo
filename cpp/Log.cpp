@@ -11,11 +11,13 @@
 
 std::string Log::filename;
 
+long Log::max_log_number = 0;
+
 std::mutex Log::mutex;
 
 FILE *Log::stream = stderr;
 
-int Log::init(const char *filename) {
+int Log::init(const char *filename, long max_log_number) {
 
   if (NULL == (Log::stream = freopen(filename, "a+", stdout))) {
 
@@ -33,6 +35,8 @@ int Log::init(const char *filename) {
 
   Log::filename = filename;
 
+  Log::max_log_number = max_log_number;
+
   return 0;
 }
 
@@ -45,6 +49,7 @@ int Log::close() {
 
   return 1;
 }
+
 int Log::log(Log::Level level, const char *fmt, va_list ap) {
 
   struct timeval timeval_s;
@@ -168,6 +173,24 @@ int Log::perror(const char *fmt, ...) {
   return size;
 }
 
+long Log::keep(long max_log_number) {
+
+  if (max_log_number == 0) {
+    return Log::max_log_number;
+  }
+
+  if (max_log_number < 0) {
+
+    Log::log(Log::Level::ERR, "Invalid log number: %ld\n", max_log_number);
+  }
+
+  Log::max_log_number = max_log_number;
+
+  Log::log(Log::Level::INFO, "Keeping last %ld logs\n", max_log_number);
+
+  return Log::max_log_number;
+}
+
 int Log::rotate() {
 
   long pos = ftell(Log::stream);
@@ -276,6 +299,21 @@ int Log::rotate() {
   if (-1 == fseek(Log::stream, 0, SEEK_SET)) {
     Log::log(Log::Level::ERR, "Failed to fseek: %s\n", strerror(errno));
     return errno;
+  }
+
+  if (Log::max_log_number > 0 && log_number > Log::max_log_number) {
+    std::string dst = Log::filename + ".1.gz";
+    for (long i = 2; i <= log_number; i++) {
+      std::string src = Log::filename + "." + std::to_string(i) + ".gz";
+      if (rename(src.c_str(), dst.c_str()) != 0) {
+        Log::log(Log::Level::ERR, "Failed to rename %s to %s: %s\n",
+                 src.c_str(), dst.c_str(), strerror(errno));
+        return errno;
+      }
+      dst = src;
+    }
+
+    Log::log(Log::Level::INFO, "Kept %ld logs\n", Log::max_log_number);
   }
 
   Log::log(Log::Level::INFO, "Successfully rotated log\n");

@@ -33,6 +33,14 @@ int main(int argc, char *argv[], char **envp) {
 
   Settings settings("wemo.ini");
 
+  if (settings.find("global") != settings.end()) {
+    if (settings["global"].find("max_logs") != settings["global"].end()) {
+      long max_log_number =
+          strtol(settings["global"]["max_logs"].c_str(), nullptr, 10);
+      Log::keep(max_log_number);
+    }
+  }
+
   WeMo wemo(settings);
 
   Sensor sensor(settings);

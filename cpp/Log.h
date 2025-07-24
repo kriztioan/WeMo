@@ -34,7 +34,7 @@ public:
   Log() = delete;
   ~Log() = delete;
 
-  static int init(const char *filename);
+  static int init(const char *filename, long max_log_number = 0);
   static int close();
 
   static int info(const char *fmt, ...);
@@ -43,10 +43,14 @@ public:
 
   static int perror(const char *fmt, ...);
 
+  static long keep(long max_log_number = 0);
+
 private:
   enum Level { INFO, WARN, ERR };
 
   static std::string filename;
+
+  static long max_log_number;
 
   static std::mutex mutex;
 
