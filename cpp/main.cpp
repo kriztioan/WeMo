@@ -125,9 +125,12 @@ int main(int argc, char *argv[], char **envp) {
         break;
       }
 
-      if (siginfo_s.ssi_signo == SIGALRM || siginfo_s.ssi_signo == SIGUSR1) {
+      if (siginfo_s.ssi_signo == SIGALRM) {
 
         finished = wemo.check_timers();
+      } else if (siginfo_s.ssi_signo == SIGUSR1) {
+
+        wemo.rescan();
       } else if (siginfo_s.ssi_signo == SIGUSR2) {
 
         wemo.display_plugs();

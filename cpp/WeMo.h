@@ -54,6 +54,8 @@ public:
   int check_timers();
   void check_lux(uint32_t lux);
 
+  void rescan();
+
   void display_plugs();
   void display_lux();
   void display_schedules();

@@ -523,6 +523,13 @@ void WeMo::check_schedule(const char *schedule) {
   }
 }
 
+void WeMo::rescan() {
+
+  poll_t = time(NULL);
+
+  check_timers();
+}
+
 int WeMo::check_timers() {
 
   struct timeval t_val;
