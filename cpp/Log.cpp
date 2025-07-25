@@ -176,6 +176,7 @@ int Log::perror(const char *fmt, ...) {
 long Log::keep(long max_log_number) {
 
   if (max_log_number == 0) {
+
     return Log::max_log_number;
   }
 
@@ -184,9 +185,12 @@ long Log::keep(long max_log_number) {
     Log::log(Log::Level::ERR, "Invalid log number: %ld\n", max_log_number);
   }
 
-  Log::max_log_number = max_log_number;
+  if (max_log_number != Log::max_log_number) {
 
-  Log::log(Log::Level::INFO, "Keeping last %ld logs\n", max_log_number);
+    Log::max_log_number = max_log_number;
+
+    Log::log(Log::Level::INFO, "Keeping last %ld logs\n", max_log_number);
+  }
 
   return Log::max_log_number;
 }
@@ -306,7 +310,7 @@ int Log::rotate() {
     for (long i = 2; i <= log_number; i++) {
       std::string src = Log::filename + "." + std::to_string(i) + ".gz";
       if (rename(src.c_str(), dst.c_str()) != 0) {
-        Log::log(Log::Level::ERR, "Failed to rename %s to %s: %s\n",
+        Log::log(Log::Level::ERR, "Failed to rename '%s' to '%s': %s\n",
                  src.c_str(), dst.c_str(), strerror(errno));
         return errno;
       }
