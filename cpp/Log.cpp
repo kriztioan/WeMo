@@ -35,7 +35,7 @@ int Log::init(const char *filename, long max_log_number) {
 
   Log::filename = filename;
 
-  Log::max_log_number = max_log_number;
+  keep(max_log_number);
 
   return 0;
 }

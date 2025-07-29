@@ -2,7 +2,7 @@ CPP_FILES:=$(wildcard *.cpp)
 OBJ_FILES:=$(patsubst %.cpp,%.o,$(CPP_FILES))
 DEP_FILES:=deps.d
 PROGS:=wemod
-CPPFLAGS:=-O2 -MMD -MF $(DEP_FILES)
+CPPFLAGS:=-flto -O2 -MMD -MF $(DEP_FILES)
 LIBS:=-lssl -lcrypto -lz
 
 all: $(PROGS)
