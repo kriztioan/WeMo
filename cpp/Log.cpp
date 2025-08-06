@@ -271,6 +271,32 @@ int Log::rotate() {
 
   globfree(&logs);
 
+  if (Log::max_log_number > 0 && log_number > Log::max_log_number) {
+    for (long i = Log::max_log_number + 1; i < log_number; i++) {
+      std::string src = Log::filename + "." + std::to_string(i) + ".gz";
+      if (remove(src.c_str()) != 0) {
+        Log::log(Log::Level::ERR, "Failed to remove '%s': %s\n", src.c_str(),
+                 strerror(errno));
+        return errno;
+      }
+    }
+
+    std::string dst = Log::filename + ".1.gz";
+    for (long i = 2; i <= Log::max_log_number; i++) {
+      std::string src = Log::filename + "." + std::to_string(i) + ".gz";
+      if (rename(src.c_str(), dst.c_str()) != 0) {
+        Log::log(Log::Level::ERR, "Failed to rename '%s' to '%s': %s\n",
+                 src.c_str(), dst.c_str(), strerror(errno));
+        return errno;
+      }
+      dst = src;
+    }
+
+    log_number = Log::max_log_number;
+
+    Log::log(Log::Level::INFO, "Keeping last %ld logs\n", Log::max_log_number);
+  }
+
   std::string gzfile = Log::filename + "." + std::to_string(log_number) + ".gz";
 
   struct gzFile_s *gz = gzopen(gzfile.c_str(), "wb9");
@@ -303,21 +329,6 @@ int Log::rotate() {
   if (-1 == fseek(Log::stream, 0, SEEK_SET)) {
     Log::log(Log::Level::ERR, "Failed to fseek: %s\n", strerror(errno));
     return errno;
-  }
-
-  if (Log::max_log_number > 0 && log_number > Log::max_log_number) {
-    std::string dst = Log::filename + ".1.gz";
-    for (long i = 2; i <= log_number; i++) {
-      std::string src = Log::filename + "." + std::to_string(i) + ".gz";
-      if (rename(src.c_str(), dst.c_str()) != 0) {
-        Log::log(Log::Level::ERR, "Failed to rename '%s' to '%s': %s\n",
-                 src.c_str(), dst.c_str(), strerror(errno));
-        return errno;
-      }
-      dst = src;
-    }
-
-    Log::log(Log::Level::INFO, "Kept %ld logs\n", Log::max_log_number);
   }
 
   Log::log(Log::Level::INFO, "Successfully rotated log\n");
