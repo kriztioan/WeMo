@@ -1,5 +1,5 @@
 /**
- *  @file   wemo.cpp
+
  *  @brief  WeMo Class Implementation
  *  @author KrizTioaN (christiaanboersma@hotmail.com)
  *  @date   2021-07-17
@@ -89,9 +89,9 @@ bool WeMo::load_settings(const Settings &settings) {
             sun = new Sun(latitude, longitude);
           }
 
-          char k[8];
+          char k[8], wday_val[16];
 
-          int val;
+          int time_val;
 
           if (settings[name].find("rise") != settings[name].end()) {
 
@@ -101,27 +101,37 @@ bool WeMo::load_settings(const Settings &settings) {
 
               for (std::string token; std::getline(iss, token, ',');) {
 
-                if (sscanf(token.c_str(), "%7[^:]:%d", k, &val) == 2) {
+                int nval = sscanf(token.c_str(), "%7[^:]:%d%%%15s", k,
+                                  &time_val, wday_val);
+
+                if (nval > 1 && nval < 4) {
+
+                  time_t wday = nval > 2 ? parse_wday(wday_val) : 0;
 
                   if (strcmp(k, "on") == 0) {
 
-                    this->timers["sun"].push_back((WeMo::Timer){
-                        .plug = &(*it), .time = t + val, .action = "on"});
+                    this->timers["sun"].push_back(
+                        (WeMo::Timer){.plug = &(*it),
+                                      .time = (t + time_val) | wday,
+                                      .action = "on"});
                   } else if (strcmp(k, "off") == 0) {
 
-                    this->timers["sun"].push_back((WeMo::Timer){
-                        .plug = &(*it), .time = t + val, .action = "off"});
+                    this->timers["sun"].push_back(
+                        (WeMo::Timer){.plug = &(*it),
+                                      .time = (t + time_val) | wday,
+                                      .action = "off"});
                   } else {
 
-                    Log::warn("Invalid parameter in sun rise options '%s' ... "
+                    Log::warn("Invalid parameter in sun rise "
+                              "options '%s' ... "
                               "ignoring\n",
                               k);
                   }
                 } else {
 
-                  Log::warn(
-                      "Failed to parse sun rise options: '%s' ... ignoring\n",
-                      token.c_str());
+                  Log::warn("Failed to parse sun rise "
+                            "options: '%s' ... ignoring\n",
+                            token.c_str());
                 }
               }
             } else {
@@ -139,16 +149,25 @@ bool WeMo::load_settings(const Settings &settings) {
 
               for (std::string token; std::getline(iss, token, ',');) {
 
-                if (sscanf(token.c_str(), "%7[^:]:%d", k, &val) == 2) {
+                int nval = sscanf(token.c_str(), "%7[^:]:%d%%%15s", k,
+                                  &time_val, wday_val);
+
+                if (nval > 1 && nval < 4) {
+
+                  time_t wday = nval > 2 ? parse_wday(wday_val) : 0;
 
                   if (strcmp(k, "on") == 0) {
 
-                    this->timers["sun"].push_back((WeMo::Timer){
-                        .plug = &(*it), .time = t + val, .action = "on"});
+                    this->timers["sun"].push_back(
+                        (WeMo::Timer){.plug = &(*it),
+                                      .time = (t + time_val) | wday,
+                                      .action = "on"});
                   } else if (strcmp(k, "off") == 0) {
 
-                    this->timers["sun"].push_back((WeMo::Timer){
-                        .plug = &(*it), .time = t + val, .action = "off"});
+                    this->timers["sun"].push_back(
+                        (WeMo::Timer){.plug = &(*it),
+                                      .time = (t + time_val) | wday,
+                                      .action = "off"});
                   } else {
 
                     Log::warn("Invalid parameter in sun set options '%s' ... "
@@ -592,7 +611,7 @@ int WeMo::check_timers() {
 
 time_t WeMo::parse_time(const char *str) {
 
-  char *m, days_of_week = 0;
+  char *m;
 
   time_t t, l = strtol(str, &m, 10);
   if (l < 0 || l > 23) {
@@ -627,55 +646,70 @@ time_t WeMo::parse_time(const char *str) {
     }
   }
 
+  time_t days_of_week = 0;
   if (*m++ == '%') {
-    if (*m == '*') {
-      days_of_week = (char)0b01111111;
-    } else {
 
-      bool has_range = false;
-      char start_char = 0, end_char = 0;
+    days_of_week = parse_wday(m);
+    if (days_of_week < 0) {
 
-      while (*m) {
-        if (isdigit(*m)) {
-          if (*m < '1' || *m > '7') {
-
-            Log::warn("Invalid value in '%s': %c", str, *m);
-            return -1;
-          }
-
-          if (has_range) {
-            if (*m < start_char) {
-
-              Log::warn("Invalid value in '%s': %c", str, *m);
-              return -1;
-            } else {
-              end_char = *m++;
-            }
-          } else {
-            start_char = *m++;
-          }
-        } else if (start_char && *m++ == '-') {
-          has_range = true;
-          continue;
-        } else {
-
-          Log::warn("Invalid value in '%s': %c", str, *m);
-          return -1;
-        }
-
-        do {
-          days_of_week |= 1 << (start_char - '1');
-        } while (start_char++ < end_char);
-
-        if (end_char) {
-          end_char = 0;
-          has_range = false;
-        }
-      }
+      return -1;
     }
   }
 
-  return t | (((time_t)days_of_week) << 24);
+  return t | days_of_week;
+}
+
+time_t WeMo::parse_wday(const char *str) {
+
+  if (*str == '*') {
+    return (time_t)((char)0b01111111) << 24;
+  }
+
+  const char *m = str;
+
+  bool has_range = false;
+  char start_char = 0, end_char = 0;
+
+  time_t days_of_week = 0;
+  while (*m) {
+    if (isdigit(*m)) {
+      if (*m < '1' || *m > '7') {
+
+        Log::warn("Invalid value in '%s': %c", str, *m);
+        return -1;
+      }
+
+      if (has_range) {
+        if (*m < start_char) {
+
+          Log::warn("Invalid value in '%s': %c", str, *m);
+          return -1;
+        } else {
+          end_char = *m++;
+        }
+      } else {
+        start_char = *m++;
+      }
+    } else if (start_char && *m++ == '-') {
+      has_range = true;
+      continue;
+    } else {
+
+      Log::warn("Invalid value in '%s': %c", str, *m);
+      return -1;
+    }
+
+    do {
+      days_of_week |= 1 << (start_char - '1');
+    } while (start_char++ < end_char);
+
+    if (end_char) {
+      end_char = 0;
+      has_range = false;
+    }
+  }
+
+  return days_of_week << 24;
 }
 
 time_t WeMo::next_weekday(time_t t, time_t wday) {
