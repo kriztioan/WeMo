@@ -53,8 +53,8 @@ ontimes=6:00%2-6,8:00%17
 offtimes=22:00
 ; schedule based on sunset/rise times
 sun=true
-; on/off times offset in seconds
-rise=on:-900,off:900
+; on/off times offset in seconds and rise only weekdays
+rise=on:-900%2-6,off:900%2-6
 set=on:-900
 ```
 
@@ -73,6 +73,8 @@ turn a given plug on and off, respectively. Optionally, the day of the week,
 section, which is either set to true or false, indicates whether to include a
 sun rise/set schedule. `rise` and `set` keys are the comma-separated lists that
 enable and configure the offsets in seconds to apply to the on and off times.
+Like the `ontimes` and `offtimes` keys, optionally, the day of the week can be
+specified following a '%'.
 
 The daemon responds to the `SIGUSR1` and `SIGUSR2` signal, where the former
 forces a re-scan and the latter writes a summary of the daemon's state and the

@@ -739,7 +739,7 @@ time_t WeMo::epoch_time(time_t t) {
 
   s_tm->tm_hour = t / 3600;
   s_tm->tm_min = t % 3600 / 60;
-  s_tm->tm_sec = t % 3600 % 60;
+  s_tm->tm_sec = s_tm->tm_min % 60;
 
   return mktime(s_tm);
 }
